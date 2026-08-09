@@ -2,8 +2,8 @@ import type { Metadata } from "next";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "Tether — Reliable AI Concierge",
-  description: "AI concierge with persistent memory, real tools, and human-in-the-loop approval (MAA v4.0 trust layer).",
+  title: "MAN — Personal AI Intelligence Agent",
+  description: "MAN, a personal AI intelligence and assistant system created by MD Rayhan Mia, Rangpur, Bangladesh.",
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {

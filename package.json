@@ -1,8 +1,8 @@
 {
-  "name": "ai-concierge",
-  "version": "0.1.0",
+  "name": "man-ai-agent",
+  "version": "1.0.0",
   "private": true,
-  "description": "Tether — Reliable AI Concierge: persistent memory, real tools, human-in-the-loop approval (MAA v4.0 trust layer).",
+  "description": "MAN \u2014 Personal AI Intelligence Agent. Created by MD Rayhan Mia, Rangpur, Bangladesh. Multi-user, private, voice + text, AI provider routing, approval gate.",
   "scripts": {
     "dev": "next dev",
     "build": "next build",

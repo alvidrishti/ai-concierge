@@ -1,0 +1,138 @@
+// MAN — AI Provider Router
+//
+// Priority: Gemini -> Groq -> OpenRouter -> GitHub Models -> friendly error.
+// All keys stay server-side (Vercel env vars). Never expose to browser.
+// No fake responses: if a provider fails, we FAIL OVER or return a clear
+// error — we never fabricate a success.
+//
+// Env vars: GEMINI_API_KEY, GROQ_API_KEY, OPENROUTER_API_KEY, GITHUB_TOKEN
+
+export interface LLMResult {
+  text: string;
+  provider: string;   // which provider actually served it
+  model: string;
+  usage?: { input_tokens?: number; output_tokens?: number };
+  ok: boolean;
+  error?: string;
+}
+
+interface Provider {
+  name: string;
+  enabled: boolean;
+  model: string;
+  url: string;
+  headers: Record<string, string>;
+  body: (prompt: string, sys: string) => unknown;
+  parse: (data: any) => { text: string; usage?: any };
+}
+
+const key = (k: string) => process.env[k] || "";
+
+// ---------- Gemini ----------
+const gemini: Provider = {
+  name: "gemini",
+  enabled: !!key("GEMINI_API_KEY"),
+  model: process.env.MAN_GEMINI_MODEL || "gemini-2.0-flash",
+  url: "",
+  headers: {},
+  body: () => ({}),
+  parse: () => ({ text: "" }),
+};
+gemini.url = `https://generativelanguage.googleapis.com/v1beta/models/${gemini.model}:generateContent?key=${key("GEMINI_API_KEY")}`;
+gemini.headers = { "Content-Type": "application/json" };
+gemini.body = (prompt, sys) => ({
+  systemInstruction: { parts: [{ text: sys }] },
+  contents: [{ role: "user", parts: [{ text: prompt }] }],
+  generationConfig: { temperature: 0.7 },
+});
+gemini.parse = (d: any) => ({
+  text: d?.candidates?.[0]?.content?.parts?.map((p: any) => p.text).join("") || "",
+});
+
+// ---------- Groq (OpenAI-compatible) ----------
+const groq: Provider = {
+  name: "groq",
+  enabled: !!key("GROQ_API_KEY"),
+  model: process.env.MAN_GROQ_MODEL || "llama-3.3-70b-versatile",
+  url: "https://api.groq.com/openai/v1/chat/completions",
+  headers: { "Content-Type": "application/json", Authorization: `Bearer ${key("GROQ_API_KEY")}` },
+  body: (prompt, sys) => ({
+    model: groq.model,
+    temperature: 0.7,
+    messages: [{ role: "system", content: sys }, { role: "user", content: prompt }],
+  }),
+  parse: (d: any) => ({ text: d?.choices?.[0]?.message?.content || "",
+    usage: { input_tokens: d?.usage?.prompt_tokens, output_tokens: d?.usage?.completion_tokens } }),
+};
+
+// ---------- OpenRouter ----------
+const openrouter: Provider = {
+  name: "openrouter",
+  enabled: !!key("OPENROUTER_API_KEY"),
+  model: process.env.MAN_OPENROUTER_MODEL || "meta-llama/llama-3.3-70b-instruct:free",
+  url: "https://openrouter.ai/api/v1/chat/completions",
+  headers: { "Content-Type": "application/json", Authorization: `Bearer ${key("OPENROUTER_API_KEY")}` },
+  body: (prompt, sys) => ({
+    model: openrouter.model, temperature: 0.7,
+    messages: [{ role: "system", content: sys }, { role: "user", content: prompt }],
+  }),
+  parse: (d: any) => ({ text: d?.choices?.[0]?.message?.content || "",
+    usage: { input_tokens: d?.usage?.prompt_tokens, output_tokens: d?.usage?.completion_tokens } }),
+};
+
+// ---------- GitHub Models ----------
+const github: Provider = {
+  name: "github",
+  enabled: !!key("GITHUB_TOKEN"),
+  model: process.env.MAN_GITHUB_MODEL || "gpt-4o-mini",
+  url: "https://models.inference.ai.azure.com/chat/completions",
+  headers: { "Content-Type": "application/json", Authorization: `Bearer ${key("GITHUB_TOKEN")}` },
+  body: (prompt, sys) => ({
+    model: github.model, messages: [{ role: "system", content: sys }, { role: "user", content: prompt }],
+  }),
+  parse: (d: any) => ({ text: d?.choices?.[0]?.message?.content || "" }),
+};
+
+const CHAIN: Provider[] = [gemini, groq, openrouter, github];
+export const activeProviders = CHAIN.filter((p) => p.enabled).map((p) => p.name);
+
+async function callProvider(p: Provider, prompt: string, sys: string): Promise<LLMResult> {
+  try {
+    const ctrl = new AbortController();
+    const t = setTimeout(() => ctrl.abort(), 45000);
+    const res = await fetch(p.url, {
+      method: "POST",
+      headers: p.headers,
+      body: JSON.stringify(p.body(prompt, sys)),
+      signal: ctrl.signal,
+    });
+    clearTimeout(t);
+    if (!res.ok) {
+      throw new Error(`${p.name} HTTP ${res.status}`);
+    }
+    const data = await res.json();
+    const { text, usage } = p.parse(data);
+    if (!text) throw new Error(`${p.name} empty response`);
+    return { text, provider: p.name, model: p.model, usage, ok: true };
+  } catch (e: any) {
+    return { text: "", provider: p.name, model: p.model, ok: false, error: String(e?.message || e) };
+  }
+}
+
+// Main router: try each enabled provider in priority order.
+export async function route(prompt: string, system: string): Promise<LLMResult> {
+  const failures: string[] = [];
+  for (const p of CHAIN) {
+    if (!p.enabled) continue;
+    const r = await callProvider(p, prompt, system);
+    if (r.ok) return r;
+    failures.push(`${p.name}:${r.error}`);
+  }
+  return {
+    text: "",
+    provider: "none",
+    model: "",
+    ok: false,
+    error: `All providers unavailable. (${failures.join(" | ") || "no providers configured"})`,
+  };
+}

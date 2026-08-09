@@ -1,28 +1,30 @@
 import { NextResponse } from "next/server";
+import { getSession } from "@/lib/session";
 import { getPendingAction, resolvePendingAction } from "@/lib/approval";
 import { memory } from "@/lib/memory";
 
 export const runtime = "nodejs";
 
-// Approve or reject a pending action (MAA Pillar 10 — Approval Gate).
+// Approve / reject a pending action — scoped to the authenticated user.
 export async function POST(req: Request) {
   try {
-    const body = await req.json();
-    const { id, approved } = body || {};
-    const action = await getPendingAction(String(id || ""));
+    const session = await getSession();
+    if (!session) return NextResponse.json({ error: "not authenticated" }, { status: 401 });
+
+    const { id, approved } = await req.json();
+    const action = await getPendingAction(String(id || ""), session.userId);
     if (!action) {
       return NextResponse.json({ error: "action not found" }, { status: 404 });
     }
-    await resolvePendingAction(action.id, !!approved);
+    await resolvePendingAction(action.id, !!approved, session.userId);
 
     if (approved && action.intent === "create_reminder") {
-      // persist the approved reminder to memory
-      const title = action.detail.match(/"([^"]+)"/)?.[1] || "reminder";
-      const when = action.detail.match(/on ([^\.]+)\./)?.[1] || "soon";
-      await memory.addReminder(title, when);
+      const title = action.summary.match(/"([^"]+)"/)?.[1] || "reminder";
+      const when = action.summary.match(/on ([^\.]+)\.?$/)?.[1] || "soon";
+      await memory.addReminder(session.userId, title, when);
     }
     return NextResponse.json({ ok: true, state: action.state, detail: action.detail });
   } catch (e: any) {
-    return NextResponse.json({ error: String(e?.message || e) }, { status: 500 });
+    return NextResponse.json({ error: "Something went wrong" }, { status: 500 });
   }
 }

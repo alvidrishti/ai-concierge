@@ -38,8 +38,10 @@ export async function POST(req: Request) {
       }
     }
 
-    // Normal agent turn
-    const turn = await respond(body);
+    // Normal agent turn — derive a stable userId from the phone number so
+    // memory/conversations are isolated per WhatsApp number.
+    const userId = "wa_" + from.replace(/\D+/g, "");
+    const turn = await respond(body, userId, false);
     let reply = turn.text;
 
     // If the agent raised a pending action, tell the user to reply Approve/Reject.

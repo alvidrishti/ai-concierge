@@ -1,100 +1,100 @@
-// Persistent memory for the AI Concierge.
+// MAN — Per-user memory + conversation history.
 //
-// MAA v4.0 trust principle: data is always retrievable and survives across
-// sessions. This uses Supabase (Postgres) when DATABASE_URL / service key are
-// set, otherwise falls back to an in-memory store so the demo works locally.
+// Every record is scoped to a userId. Users can NEVER read another user's
+// memory/conversations because all queries are filtered by user_id at the
+// data layer (see lib/db.ts). Falls back to in-memory per-process store for
+// local dev when Supabase isn't configured (still keyed by userId).
 
-export interface Reminder {
-  id: string;
-  title: string;
-  when: string;
-  status: string;
-  created_at: string;
+import { db, dbEnabled } from "./db";
+
+export interface MemoryItem {
+  key: string;
+  value: string;
+}
+export interface ChatMessage {
+  role: "user" | "assistant";
+  content: string;
 }
 
-export interface MemoryData {
-  name?: string;
-  preferences: Record<string, string>;
-  reminders: Reminder[];
-  tasks: Record<string, unknown>;
-}
-
-// Simple in-memory + localStorage-ish fallback for local dev.
-// On Vercel, configure Supabase so memory persists across serverless calls.
 class Memory {
-  private store: MemoryData = { preferences: {}, reminders: [], tasks: {} };
-  private db: any = null;
+  // in-memory fallback (dev)
+  private mem = new Map<string, Map<string, string>>();
+  private conv = new Map<string, ChatMessage[]>();
 
-  constructor() {
-    const url = process.env.SUPABASE_URL;
-    const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
-    if (url && key) {
-      // Minimal Supabase REST client (uses PostgREST). No SDK dependency.
-      this.db = { url: url.replace(/\/$/, ""), key };
+  // ---- long-term memory ----
+  async getMemory(userId: string): Promise<MemoryItem[]> {
+    if (dbEnabled()) {
+      const rows = await db.select("user_memory", `&user_id=eq.${encodeURIComponent(userId)}`);
+      return rows.map((r: any) => ({ key: r.key, value: r.value }));
     }
+    return [...(this.mem.get(userId) || new Map())].map(([key, value]) => ({ key, value }));
   }
 
-  private async headers() {
-    return {
-      "Content-Type": "application/json",
-      apikey: this.db?.key,
-      Authorization: `Bearer ${this.db?.key}`,
-    };
-  }
-
-  async getProfile(): Promise<MemoryData["preferences"]> {
-    if (this.db) {
-      const r = await fetch(`${this.db.url}/rest/v1/profile?select=*`, {
-        headers: await this.headers(),
-      });
-      const rows = (await r.json()) as Array<{ data: Record<string, string> }>;
-      return rows[0]?.data || {};
-    }
-    return this.store.preferences;
-  }
-
-  async setPreference(key: string, value: string): Promise<void> {
-    if (this.db) {
-      await fetch(`${this.db.url}/rest/v1/profile`, {
-        method: "POST",
-        headers: await this.headers(),
-        body: JSON.stringify({ id: 1, data: { ...(await this.getProfile()), [key]: value } }),
-      });
+  async setMemory(userId: string, key: string, value: string): Promise<void> {
+    if (dbEnabled()) {
+      try {
+        await db.insert("user_memory", { user_id: userId, key, value });
+      } catch {
+        // upsert: delete then insert
+        await db.del("user_memory", `user_id=eq.${encodeURIComponent(userId)}&key=eq.${encodeURIComponent(key)}`);
+        await db.insert("user_memory", { user_id: userId, key, value });
+      }
       return;
     }
-    this.store.preferences[key] = value;
+    if (!this.mem.has(userId)) this.mem.set(userId, new Map());
+    this.mem.get(userId)!.set(key, value);
   }
 
-  async addReminder(title: string, when: string): Promise<Reminder> {
-    const rem: Reminder = {
-      id: `rem_${Date.now()}`,
-      title,
-      when,
-      status: "scheduled",
-      created_at: new Date().toISOString(),
-    };
-    if (this.db) {
-      await fetch(`${this.db.url}/rest/v1/reminders`, {
-        method: "POST",
-        headers: await this.headers(),
-        body: JSON.stringify(rem),
-      });
-      return rem;
+  async deleteMemory(userId: string, key?: string): Promise<void> {
+    if (dbEnabled()) {
+      const f = key
+        ? `user_id=eq.${encodeURIComponent(userId)}&key=eq.${encodeURIComponent(key)}`
+        : `user_id=eq.${encodeURIComponent(userId)}`;
+      await db.del("user_memory", f);
+      return;
     }
-    this.store.reminders.push(rem);
-    return rem;
+    const m = this.mem.get(userId);
+    if (m) { if (key) m.delete(key); else this.mem.delete(userId); }
   }
 
-  async listReminders(): Promise<Reminder[]> {
-    if (this.db) {
-      const r = await fetch(`${this.db.url}/rest/v1/reminders?select=*`, {
-        headers: await this.headers(),
-      });
-      return (await r.json()) as Reminder[];
+  // ---- conversation history ----
+  async getConversation(userId: string, limit = 12): Promise<ChatMessage[]> {
+    if (dbEnabled()) {
+      const rows = await db.select("conversations", `&user_id=eq.${encodeURIComponent(userId)}&order=created_at.desc&limit=${limit}`);
+      return rows.reverse().map((r: any) => ({ role: r.role, content: r.content }));
     }
-    return this.store.reminders;
+    return (this.conv.get(userId) || []).slice(-limit);
+  }
+
+  async saveConversation(userId: string, role: "user" | "assistant", content: string, provider?: string): Promise<void> {
+    if (dbEnabled()) {
+      await db.insert("conversations", { user_id: userId, role, content, provider }).catch(() => {});
+      return;
+    }
+    if (!this.conv.has(userId)) this.conv.set(userId, []);
+    this.conv.get(userId)!.push({ role, content });
+    if (this.conv.get(userId)!.length > 200) this.conv.set(userId, this.conv.get(userId)!.slice(-200));
+  }
+
+  async clearConversation(userId: string): Promise<void> {
+    if (dbEnabled()) {
+      await db.del("conversations", `user_id=eq.${encodeURIComponent(userId)}`);
+      return;
+    }
+    this.conv.delete(userId);
+  }
+
+  // ---- reminders (kept from Tether, scoped to user) ----
+  async addReminder(userId: string, title: string, when: string): Promise<void> {
+    if (dbEnabled()) {
+      await db.insert("reminders", { id: `rem_${Date.now()}`, user_id: userId, title, when }).catch(() => {});
+      return;
+    }
+  }
+  async listReminders(userId: string) {
+    if (dbEnabled()) return db.select("reminders", `&user_id=eq.${encodeURIComponent(userId)}`).catch(() => []);
+    return [];
   }
 }
 
-// A singleton shared across route handlers.
 export const memory = new Memory();
