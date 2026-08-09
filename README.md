@@ -1,5 +1,12 @@
 # Tether — Reliable AI Concierge
 
+[![Next.js](https://img.shields.io/badge/Next.js-14-black?logo=nextdotjs)](https://nextjs.org)
+[![Live](https://img.shields.io/badge/Deployed-LIVE-green)](https://ai-concierge-lake-three.vercel.app)
+[![Repo](https://img.shields.io/badge/Repo-alvidrishti%2Fai--concierge-lightgrey)](https://github.com/alvidrishti/ai-concierge)
+
+> 🟢 **LIVE:** https://ai-concierge-lake-three.vercel.app — deployed on Vercel
+> (free tier). Open it in your browser and try the quick prompts.
+
 An AI concierge web app with the **MAA v4.0 trust layer** built in:
 persistent memory, real tools, and a **human-in-the-loop approval gate** so
 the agent never acts (or guesses) without your explicit OK.

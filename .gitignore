@@ -4,3 +4,6 @@ out/
 .env*.local
 .env
 *.tsbuildinfo
+output/*
+!output/deploy_proof.png
+!output/Tether_Portfolio_Report.pdf
