@@ -35,3 +35,15 @@ alter table public.pending_actions enable row level security;
 create policy "service role all" on public.profile for all using (true) with check (true);
 create policy "service role all" on public.reminders for all using (true) with check (true);
 create policy "service role all" on public.pending_actions for all using (true) with check (true);
+
+-- Billing subscriptions (Stripe)
+create table if not exists public.subscriptions (
+  id text primary key,
+  user_id text,
+  plan text,
+  status text default 'active',
+  stripe_session_id text,
+  created_at timestamptz default now()
+);
+alter table public.subscriptions enable row level security;
+create policy "service role all" on public.subscriptions for all using (true) with check (true);

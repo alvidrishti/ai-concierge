@@ -4,6 +4,12 @@ How to take the live web MVP to a **revenue-generating product**: users chat
 via WhatsApp, and you charge a subscription. Same agent + approval gate, just
 reached where the user already is.
 
+> ✅ **Starter code is included** in this repo:
+> - `lib/whatsapp.ts` + `app/api/whatsapp/route.ts` — WhatsApp webhook
+> - `lib/billing.ts` + `app/api/billing/checkout` + `webhook` — Stripe
+> - `.env.example` lists the new env vars
+> - `db/schema.sql` adds a `subscriptions` table
+
 ---
 
 ## Part A — WhatsApp integration
