@@ -7,44 +7,41 @@
 export interface KnowledgeEntry {
   id: string;
   category: string;
-  keywords: string[];       // words that trigger relevance
-  content: string;
+  keywords: string[];       // words that trigger relevance (EN + BN)
+  content: string;          // stored in English; MAN paraphrases it naturally
 }
 
 const KB: KnowledgeEntry[] = [
   { id: "identity", category: "Identity",
-    keywords: ["who", "man", "agent", "made", "created", "builder", "your name"],
+    keywords: ["who", "man", "agent", "made", "created", "builder", "your name", "কে", "তুমি", "কি"],
     content: "MAN is a personal AI intelligence and assistant system created by MD Rayhan Mia, based in Rangpur, Bangladesh." },
   { id: "creator", category: "Professional profile",
-    keywords: ["rayhan", "mia", "md rayhan", "creator", "developer", "who made"],
-    content: "MAN was designed and built by MD Rayhan Mia (Rangpur, Bangladesh). He builds AI agents, automation systems, and web applications. He is the creator of the MAA (Master AI Architect) ecosystem." },
+    keywords: ["rayhan", "mia", "md rayhan", "creator", "developer", "who made", "রায়হান", "মিয়া", "কে বানিয়েছে", "কে বানালো", "creator k"],
+    content: "MD Rayhan Mia is a developer and AI agent builder from Rangpur, Bangladesh. He designed and built MAN as his personal AI intelligence agent. He is also the creator of the MAA (Master AI Architect) ecosystem — a reusable methodology for building reliable, trustworthy AI products." },
   { id: "skills", category: "Skills",
-    keywords: ["skill", "expert", "good at", "what can", "do you know", "capable"],
-    content: "MD Rayhan Mia's skills include: AI agent development, prompt engineering, LLM integration (Gemini, Groq, OpenAI, Claude), automation pipelines, Next.js/React web apps, the MAA (Master AI Architect) ecosystem, and AI product consulting." },
+    keywords: ["skill", "expert", "good at", "what can", "do you know", "capable", "দক্ষতা", "কি করতে পারে", "কি পারে", "কি জানিস"],
+    content: "MD Rayhan Mia's skills include: AI agent development, prompt engineering, LLM integration (Gemini, Groq, OpenRouter, OpenAI, Claude), automation pipelines, Next.js/React web apps, database design (Supabase/PostgreSQL), deployment on Vercel, and AI product consulting. He is building a full AI ecosystem (MAA) of reusable tools and methodology." },
   { id: "projects", category: "Projects",
-    keywords: ["project", "built", "product", "portfolio", "work"],
-    content: "Notable projects by MD Rayhan Mia include: MAN (this personal AI agent), the MAA ecosystem documentation (v1-v4), the 'Now @ Nvidia' automated newsletter pipeline, the 'Personal Task Concierge' demo, and Tether (a reliable AI concierge with human-in-the-loop approval)." },
+    keywords: ["project", "built", "product", "portfolio", "work", "প্রজেক্ট", "কাজ", "বানিয়েছে", "প্রোডাক্ট"],
+    content: "Notable projects by MD Rayhan Mia include: MAN (this personal AI agent), the MAA ecosystem documentation (v1-v4), the 'Now @ Nvidia' automated newsletter pipeline, the 'Personal Task Concierge' AI demo, Tether (a reliable AI concierge with human-in-the-loop approval), and the native MAN Android app. He is actively expanding these into real products." },
   { id: "ai_work", category: "AI work",
-    keywords: ["ai", "agent", "llm", "model", "automation", "chatbot", "artificial"],
-    content: "MD Rayhan Mia's AI work spans building reliable AI agents, prompt-engineering ecosystems, automated content pipelines, and the MAA trust layer (approval gates, self-QA, cost monitoring, rollback)." },
+    keywords: ["ai", "agent", "llm", "model", "automation", "chatbot", "artificial", "এআই", "আর্টিফিশিয়াল"],
+    content: "MD Rayhan Mia's AI work focuses on building reliable, production-ready AI agents — not just demos. His MAA trust layer adds approval gates, self-QA, cost monitoring, rollback, and multi-user isolation so automated AI systems can be trusted to run unattended." },
   { id: "design", category: "Design work",
-    keywords: ["design", "ui", "ux", "interface", "portfolio", "creative"],
-    content: "MD Rayhan Mia does UI/UX and product design, and produces portfolio-grade PDF case studies and strategy blueprints for client work." },
+    keywords: ["design", "ui", "ux", "interface", "portfolio", "creative", "ডিজাইন"],
+    content: "MD Rayhan Mia does UI/UX and product design, creates brand identities (like the MAN logo system), and produces portfolio-grade PDF case studies and strategy blueprints for client work." },
   { id: "tech", category: "Technologies",
-    keywords: ["technology", "stack", "framework", "language", "tool", "tech", "next", "react"],
-    content: "Technologies MD Rayhan Mia works with: Next.js, React, TypeScript, Node.js, Python, Supabase, PostgreSQL, Vercel, Tailwind, GitHub, and various LLM APIs (Gemini, Groq, OpenRouter, OpenAI)." },
+    keywords: ["technology", "stack", "framework", "language", "tool", "tech", "next", "react", "টেক", "টেকনোলজি"],
+    content: "Technologies MD Rayhan Mia works with: Next.js, React, TypeScript, Node.js, Python, Supabase, PostgreSQL, Vercel, Tailwind, GitHub, and various LLM APIs (Gemini, Groq, OpenRouter, OpenAI, Claude). He also builds React Native / Expo apps." },
   { id: "preferences", category: "Preferences",
-    keywords: ["preference", "like", "style", "way", "prefer"],
-    content: "MD Rayhan Mia prefers honest, evidence-based methodology over hype — no fabricated numbers, no unfulfillable promises. He names things 'ecosystems' not just 'frameworks'." },
+    keywords: ["preference", "like", "style", "way", "prefer", "পছন্দ"],
+    content: "MD Rayhan Mia prefers honest, evidence-based methodology over hype — no fabricated numbers, no unfulfillable promises. He calls things 'ecosystems' rather than just 'frameworks'. He is ambitious and plans to keep upgrading MAN into a real, paid, production AI product." },
   { id: "location", category: "Public information",
-    keywords: ["where", "location", "bangladesh", "rangpur", "live", "based"],
+    keywords: ["where", "location", "bangladesh", "rangpur", "live", "based", "কোথায়", "থাকেন", "বাংলাদেশ", "রংপুর"],
     content: "MD Rayhan Mia is based in Rangpur, Bangladesh." },
-  { id: "instructions", category: "Important instructions",
-    keywords: ["instruction", "rule", "remember", "important", "should", "guideline"],
-    content: "MAN must identify itself as MAN, Personal AI Intelligence Agent, created by MD Rayhan Mia. MAN must be honest, never fabricate facts, keep user data private and isolated, and ask for approval before consequential actions." },
   { id: "faq", category: "Frequently asked questions",
-    keywords: ["faq", "question", "help", "what", "how", "contact"],
-    content: "Common questions: Who made MAN? — MD Rayhan Mia. Where? — Rangpur, Bangladesh. Can MAN use AI models? — Yes, via Gemini/Groq/OpenRouter routing. Is my data private? — Yes, memory is isolated per user." },
+    keywords: ["faq", "question", "help", "what", "how", "contact", "প্রশ্ন", "কি করতে পারো"],
+    content: "Common questions: Who made MAN? — MD Rayhan Mia. Where? — Rangpur, Bangladesh. Can MAN use AI models? — Yes, via Gemini/Groq/OpenRouter routing with automatic fallback. Is my data private? — Yes, memory is isolated per user. Can MAN speak Bangla? — Yes, if you write in Bangla, MAN replies in Bangla." },
 ];
 
 export function retrieveKnowledge(query: string): string {

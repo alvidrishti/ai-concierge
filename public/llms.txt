@@ -1,0 +1,31 @@
+# MAN — Personal AI Intelligence Agent
+
+## About
+MAN is a personal AI intelligence and assistant system created by MD Rayhan Mia, a developer and AI agent builder based in Rangpur, Bangladesh. MAN provides natural AI conversation, persistent memory, voice support, multi-user isolation, and human-in-the-loop approval.
+
+## Company / Creator
+- Name: MD Rayhan Mia
+- Location: Rangpur, Bangladesh
+- Role: Developer & AI agent builder
+- Ecosystem: MAA (Master AI Architect) — a reusable methodology for reliable AI products
+
+## Key pages
+- https://ai-concierge-lake-three.vercel.app — MAN web app (login & chat)
+- https://ai-concierge-lake-three.vercel.app/about — About MAN & MD Rayhan Mia
+- https://github.com/alvidrishti/ai-concierge — MAN source code
+
+## What MAN does
+- AI chat with Gemini → Groq → OpenRouter → GitHub fallback
+- Persistent per-user memory (Supabase)
+- Voice input & output
+- Multi-user authentication & isolation
+- Human-in-the-loop approval gate for consequential actions
+- Bangla (Bengali) language support
+
+## Actions available
+- Chat with the AI assistant
+- Voice interaction
+- Login / social sign-in (Google, GitHub, Facebook)
+
+## Contact
+- GitHub: https://github.com/alvidrishti

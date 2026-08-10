@@ -1,0 +1,29 @@
+.about-wrap {
+  min-height: 100vh;
+  background: radial-gradient(1100px 540px at 78% -12%, #141b2e 0%, transparent 55%), #0b0e14;
+  color: #eef1f7;
+  display: flex;
+  justify-content: center;
+}
+.about {
+  max-width: 720px;
+  width: 100%;
+  padding: 48px 24px 72px;
+  line-height: 1.7;
+}
+.about-hero { text-align: center; margin-bottom: 36px; }
+.about-hero .logo { margin-bottom: 14px; }
+.about-hero h1 { font-size: 2rem; margin: 12px 0 4px; }
+.about-hero p { color: #8b93a5; }
+.about h2 { font-size: 1.3rem; margin: 32px 0 10px; color: #6ea8ff; }
+.about p { color: #c6cddb; margin-bottom: 10px; }
+.about strong { color: #fff; }
+.about ul { color: #c6cddb; margin-left: 18px; }
+.about li { margin-bottom: 6px; }
+.faq-item { margin-bottom: 16px; }
+.faq-item h3 { color: #eef1f7; font-size: 1rem; margin-bottom: 4px; }
+.about-cta { margin-top: 36px; text-align: center; }
+.about-cta a {
+  color: #6ea8ff; text-decoration: none; font-weight: 600;
+}
+.about-cta a:hover { text-decoration: underline; }
