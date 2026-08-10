@@ -8,31 +8,41 @@ export function dbEnabled(): boolean {
   return !!url && !!key;
 }
 
-async function headers() {
-  return {
+async function headers(prefer?: string) {
+  const h: Record<string, string> = {
     "Content-Type": "application/json",
     apikey: key || "",
     Authorization: `Bearer ${key || ""}`,
   };
+  if (prefer) h["Prefer"] = prefer;
+  return h;
 }
 
-async function request(path: string, opts: RequestInit = {}) {
+async function request(path: string, opts: RequestInit = {}, prefer?: string) {
   if (!dbEnabled()) throw new Error("Supabase not configured");
   const res = await fetch(`${url}/rest/v1/${path}`, {
     ...opts,
-    headers: { ...(await headers()), ...(opts.headers || {}) },
+    headers: { ...(await headers(prefer)), ...((opts.headers as Record<string,string>) || {}) },
   });
   if (!res.ok) {
     const body = await res.text().catch(() => "");
     throw new Error(`db ${res.status} ${body}`);
   }
-  return res.json();
+  const text = await res.text().catch(() => "");
+  if (!text) return null;
+  try {
+    return JSON.parse(text);
+  } catch {
+    return null;
+  }
 }
 
 export const db = {
-  select: (table: string, filter = "") => request(`${table}?select=*${filter}`),
+  // INSERT: use Prefer: return=representation so POST returns the row (and a
+  // body). Without it Supabase returns 201 with an empty body, which broke JSON parsing.
   insert: (table: string, row: unknown) =>
-    request(table, { method: "POST", body: JSON.stringify(row) }),
+    request(table, { method: "POST", body: JSON.stringify(row) }, "return=representation"),
+  select: (table: string, filter = "") => request(`${table}?select=*${filter}`),
   update: (table: string, filter: string, patch: unknown) =>
     request(`${table}?${filter}`, { method: "PATCH", body: JSON.stringify(patch) }),
   del: (table: string, filter: string) =>

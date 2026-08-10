@@ -50,7 +50,7 @@ create table if not exists public.reminders (
   id text primary key,
   user_id text not null,
   title text not null,
-  when text,
+  "when" text,
   status text default 'scheduled',
   created_at timestamptz default now()
 );
