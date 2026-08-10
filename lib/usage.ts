@@ -48,18 +48,50 @@ export async function logUsage(userId: string, kind: "text" | "voice", provider?
   }
 }
 
-export async function adminUsage(): Promise<{ byUser: Record<string, number>; providers: Record<string, number>; errors: number }> {
+export interface AdminUsage {
+  byUser: Record<string, number>;
+  providers: Record<string, number>;
+  errors: number;
+  messagesToday: number;
+  voiceUsage: number;
+  fallbackCount: number;
+}
+
+// Aggregate usage stats for the admin dashboard (Phase 8/9).
+// Privacy-conscious: reports counts per user/provider only — never the
+// content of anyone's private conversations.
+export async function adminUsage(): Promise<AdminUsage> {
   if (!dbEnabled()) {
-    return { byUser: {}, providers: {}, errors: 0 };
+    return { byUser: {}, providers: {}, errors: 0, messagesToday: 0, voiceUsage: 0, fallbackCount: 0 };
   }
-  const rows = await db.select("usage_log").catch(() => []);
+  const todayStr = new Date().toISOString().slice(0, 10);
+  const rows = await db.select("usage_log").catch(() => [] as any[]);
   const byUser: Record<string, number> = {};
   const providers: Record<string, number> = {};
-  let errors = 0;
-  for (const r of rows as any[]) {
+  let errors = 0, messagesToday = 0, voiceUsage = 0, fallbackCount = 0;
+  for (const r of rows) {
     byUser[r.user_id] = (byUser[r.user_id] || 0) + 1;
+    if (r.kind === "voice") voiceUsage++;
+    if (r.created_at?.startsWith(todayStr)) {
+      if (r.kind === "text") messagesToday++;
+    }
     if (r.provider) providers[r.provider] = (providers[r.provider] || 0) + 1;
-    if (r.error) errors++;
+    if (r.error) { errors++; fallbackCount++; }
   }
-  return { byUser, providers, errors };
+  return { byUser, providers, errors, messagesToday, voiceUsage, fallbackCount };
+}
+
+// Provider availability (Phase 8): report only whether each provider is
+// configured — never expose keys. A provider with no key shows "not configured".
+export function providerStatus(): { name: string; status: string }[] {
+  const checks: [string, string][] = [
+    ["Gemini", "GEMINI_API_KEY"],
+    ["Groq", "GROQ_API_KEY"],
+    ["OpenRouter", "OPENROUTER_API_KEY"],
+    ["GitHub Models", "GITHUB_TOKEN"],
+  ];
+  return checks.map(([name, env]) => ({
+    name,
+    status: process.env[env] ? "configured" : "not_configured",
+  }));
 }

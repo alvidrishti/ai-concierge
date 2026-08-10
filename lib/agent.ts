@@ -6,8 +6,10 @@
 //  2. Routes to an LLM via the provider router (lib/llm.ts).
 //  3. Detects tool actions (reminder, places lookup) and routes them with a
 //     human-in-the-loop approval gate (MAA Pillar 10).
-//  4. Never fabricates: if no provider is available it says so clearly.
-//  5. Is fully multi-user (userId scopes all memory/conversations).
+//  4. Handles memory commands (remember / forget / show memory) — Phase 4.
+//  5. Never fabricates: if no provider is available it says so clearly.
+//  6. Is fully multi-user (userId scopes all memory/conversations) and
+//     thread-aware (Phase 1).
 
 import { memory } from "./memory";
 import { route, LLMResult } from "./llm";
@@ -60,16 +62,86 @@ function isToolIntent(msg: string): "reminder" | "find" | null {
   return null;
 }
 
-export async function respond(rawMessage: string, userId: string, isAdmin = false): Promise<Turn> {
+// ---- Phase 4: memory command detection (precise, never ambiguous) ----
+function memoryCommand(low: string):
+  { type: "remember" | "forget" | "show"; key?: string; value?: string } | null {
+  // FORGET first — "forget what you remembered about X" contains "you remember"
+  // which would otherwise match the SHOW pattern below.
+  if (/forget/.test(low)) {
+    const forget = low.match(/forget (?:what you (?:remembered|remember) about |about |my )?(.+)/);
+    return { type: "forget", key: forget?.[1]?.trim() };
+  }
+  // SHOW
+  if (/\bwhat do you remember\b|\bwhat does man remember\b|show (?:me )?what you remember|show my memory|what memories/.test(low)) {
+    return { type: "show" };
+  }
+  // REMEMBER — require explicit intent phrases: "remember that I ...",
+  // "remember my <k> is <v>", "remember that <k> is <v>", "remember <v>".
+  if (/remember/.test(low)) {
+    // "remember that I prefer Bangla" / "I like X" / "I am X" -> preference
+    const pref = low.match(/remember that (?:i |i'?m |i am )(prefer|like|am|love) (.+)/);
+    if (pref && pref[2].trim().length > 0) {
+      return { type: "remember", key: "preference", value: `${pref[1].trim()} ${pref[2].trim()}` };
+    }
+    // "remember my name is Ray" / "remember my <k> is <v>"
+    const my = low.match(/remember (?:my )?(.+?)(?: is|:)\s+(.+)/);
+    if (my && my[1].trim().length < 24 && my[2].trim().length > 0) {
+      return { type: "remember", key: my[1].trim(), value: my[2].trim() };
+    }
+    // "remember that my X is Y"
+    const that = low.match(/remember that my (.+?) is (.+)/);
+    if (that && that[1].trim().length < 24 && that[2].trim().length > 0) {
+      return { type: "remember", key: that[1].trim(), value: that[2].trim() };
+    }
+    // ambiguous remember -> ask for clarification (never guess)
+    return { type: "remember" };
+  }
+  return null;
+}
+
+export async function respond(rawMessage: string, userId: string, isAdmin = false, threadId?: string): Promise<Turn> {
   const msg = rawMessage.trim();
   const low = msg.toLowerCase();
 
-  // ---- multi-user + memory ----
   const userMemory = await memory.getMemory(userId);
-  const history = await memory.getConversation(userId, 6);
+  const history = await memory.getConversation(userId, threadId, 6);
 
-  // persist the user's message
-  await memory.saveConversation(userId, "user", msg);
+  // persist the user's message (to the given thread, or a fresh one if none)
+  const targetThread = threadId || (await ensureThread(userId)).id;
+  await memory.saveConversation(userId, targetThread, "user", msg);
+
+  // ---- Phase 4: memory commands (explicit intent only, never invent) ----
+  const mcmd = memoryCommand(low);
+  if (mcmd) {
+    if (mcmd.type === "remember") {
+      if (!mcmd.key || !mcmd.value) {
+        return { role: "assistant", text: "What would you like me to remember? e.g. \"Remember that I prefer Bangla\"." };
+      }
+      await memory.setMemory(userId, mcmd.key.toLowerCase(), mcmd.value);
+      await memory.saveConversation(userId, targetThread, "assistant", `Got it — I'll remember that ${mcmd.key} is ${mcmd.value}.`);
+      return { role: "assistant", text: `Got it — I'll remember that **${mcmd.key}** is **${mcmd.value}**.`, memoryUsed: true };
+    }
+    if (mcmd.type === "forget") {
+      if (mcmd.key) {
+        await memory.deleteMemory(userId, mcmd.key.toLowerCase());
+        await memory.saveConversation(userId, targetThread, "assistant", `I've forgotten about "${mcmd.key}".`);
+        return { role: "assistant", text: `I've forgotten about **"${mcmd.key}"**.`, memoryUsed: true };
+      }
+      await memory.deleteMemory(userId);
+      await memory.saveConversation(userId, targetThread, "assistant", "I've cleared everything I remembered about you.");
+      return { role: "assistant", text: "I've cleared everything I remembered about you.", memoryUsed: true };
+    }
+    if (mcmd.type === "show") {
+      const mem = await memory.getMemory(userId);
+      if (!mem.length) {
+        await memory.saveConversation(userId, targetThread, "assistant", "I don't have any stored memories about you yet.");
+        return { role: "assistant", text: "I don't have any stored memories about you yet.", memoryUsed: true };
+      }
+      const text = "Here's what I remember about you:\n" + mem.map((m) => `- **${m.key}**: ${m.value}`).join("\n");
+      await memory.saveConversation(userId, targetThread, "assistant", text);
+      return { role: "assistant", text, memoryUsed: true };
+    }
+  }
 
   // ---- Human-in-the-loop escalation for tools with missing info ----
   const tool = isToolIntent(msg);
@@ -91,7 +163,7 @@ export async function respond(rawMessage: string, userId: string, isAdmin = fals
       ? `Here are ${results.length} option${results.length > 1 ? "s" : ""} for "${query}"${near ? " near " + near : ""}:\n\n` +
         results.map((r, i) => `${i + 1}. ${r.name} (${r.area}) — ★${r.rating}, ${r.price}\n   ${r.description}\n   ${r.address}`).join("\n\n")
       : `I couldn't find "${query}"${near ? " near " + near : ""} in my local directory.`;
-    await memory.saveConversation(userId, "assistant", text);
+    await memory.saveConversation(userId, targetThread, "assistant", text);
     return { role: "assistant", text, tool: "places_lookup", memoryUsed: true };
   }
 
@@ -104,7 +176,7 @@ export async function respond(rawMessage: string, userId: string, isAdmin = fals
       `Create reminder: "${what}" on ${when}`,
       `MAN wants to schedule a reminder for "${what}" on ${when}. Approve to save it.`);
     const text = `I'd like to set a reminder for "${what}" on ${when}. Approve below and I'll save it.`;
-    await memory.saveConversation(userId, "assistant", text);
+    await memory.saveConversation(userId, targetThread, "assistant", text);
     return { role: "assistant", text, pendingAction: pending, tool: "reminder", memoryUsed: true };
   }
 
@@ -121,10 +193,19 @@ export async function respond(rawMessage: string, userId: string, isAdmin = fals
     const text = dbEnabled()
       ? "I'm having trouble reaching my AI model providers right now. Please try again in a moment."
       : "AI providers aren't configured yet. Set GEMINI_API_KEY (or Groq/OpenRouter) in your environment to enable AI responses. You can still use my reminder and local-lookup tools.";
-    await memory.saveConversation(userId, "assistant", text);
+    await memory.saveConversation(userId, targetThread, "assistant", text);
     return { role: "assistant", text, provider: "none" };
   }
 
-  await memory.saveConversation(userId, "assistant", result.text, result.provider);
+  await memory.saveConversation(userId, targetThread, "assistant", result.text, result.provider);
   return { role: "assistant", text: result.text, provider: result.provider, memoryUsed: true };
+}
+
+async function ensureThread(userId: string) {
+  const existing = await memory.listThreads(userId);
+  if (existing.length) {
+    // reuse the most recent thread
+    return existing[0];
+  }
+  return memory.createThread(userId);
 }

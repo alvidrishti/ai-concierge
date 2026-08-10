@@ -10,7 +10,7 @@ export async function GET() {
   if (!session) return NextResponse.json({ authenticated: false });
   const [userMemory, conversation, reminders] = await Promise.all([
     memory.getMemory(session.userId),
-    memory.getConversation(session.userId, 30),
+    memory.getConversation(session.userId, undefined, 30),
     memory.listReminders(session.userId),
   ]);
   return NextResponse.json({

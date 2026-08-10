@@ -1,0 +1,43 @@
+# MAN — CI (Phase 11)
+# Runs on push and pull_request. No secrets in this repo — only repo-safe
+# commands. Env vars below are non-secret defaults used purely to make the
+# tests runnable (the app's real secrets live in Vercel, never here).
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  build-test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: TypeScript check
+        run: npx tsc --noEmit
+
+      - name: ESLint
+        run: npx next lint --dir app --dir lib --dir scripts
+
+      - name: Mock tests
+        run: npx tsx scripts/mock_test.ts
+        env:
+          AUTH_SECRET: ci_mock_secret_only_0000000000
+          ADMIN_PASS: ci_mock_admin_pass_only
+
+      - name: Security tests
+        run: npx tsx scripts/security_test.ts
+
+      - name: Production build
+        run: npm run build
