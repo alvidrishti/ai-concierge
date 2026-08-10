@@ -326,7 +326,13 @@ export default function Page() {
         </button>
         <div className="brand">
           <ManMark size={34} />
-          <div><div className="brand-name">MAN</div><div className="brand-sub">Personal AI Intelligence Agent</div></div>
+          <div>
+            <div className="brand-name">MAN</div>
+            <div className="brand-sub" style={{ display: "flex", alignItems: "center", gap: 6 }}>
+              Personal AI Intelligence Agent
+              <span className="bd-badge" title="Made in Bangladesh"><span className="bd-flag"></span>Bangladesh</span>
+            </div>
+          </div>
         </div>
         <div className="top-actions">
           <button className="icon-btn" title="Memory" aria-label="What MAN remembers"
@@ -460,8 +466,11 @@ export default function Page() {
             <div className="quick">{QUICK.map((q) => <button key={q} onClick={() => send(q)}>{q}</button>)}</div>
           )}
 
-          <div className="composer">
-            <div className="input-row">
+      <div className="composer">
+        <button className="new-chat-inline" onClick={newChat} title="Start a new conversation" aria-label="New conversation">
+          <PlusIcon /> New Chat{activeThread ? "" : " (current)"}
+        </button>
+        <div className="input-row">
               <input value={input} onChange={(e) => setInput(e.target.value)}
                 onKeyDown={(e) => e.key === "Enter" && send(input)}
                 placeholder={voiceStatus === "listening" ? "Listening…" : "Message MAN…"}
@@ -484,7 +493,10 @@ export default function Page() {
             {voiceStatus === "listening" && (<div className="voice-status" role="status"><span className="pulse-dot"></span>Listening…</div>)}
             {voiceStatus === "speaking" && (<div className="voice-status" role="status"><span className="pulse-dot"></span>Speaking…</div>)}
             {loading && (<div className="voice-status" role="status"><span className="pulse-dot"></span>Thinking…</div>)}
-            <div className="footer-hint">MAN · Personal AI Intelligence Agent · Created by MD RAYHAN MIA</div>
+            <div className="footer-hint" style={{ display: "flex", justifyContent: "center", alignItems: "center", gap: 8 }}>
+              MAN · Personal AI Intelligence Agent · Created by MD RAYHAN MIA
+              <span className="bd-badge" title="Made in Bangladesh"><span className="bd-flag"></span>🇧🇩</span>
+            </div>
           </div>
         </main>
       </div>

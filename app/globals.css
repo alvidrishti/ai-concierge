@@ -400,3 +400,31 @@ button { font-family: inherit; }
 .social-btn:hover { background: var(--man-surface-hover); border-color: var(--man-border-strong); }
 .social-btn:focus-visible { outline: 2px solid var(--man-primary); outline-offset: 2px; }
 .social-btn svg { flex: 0 0 auto; }
+
+/* ============ Bangladesh theme accents ============ */
+.bd-badge {
+  display: inline-flex; align-items: center; gap: 6px;
+  background: rgba(0,106,80,0.12); border: 1px solid rgba(0,106,80,0.4);
+  color: #0f9d6f; font-size: 11px; font-weight: 600; padding: 3px 10px;
+  border-radius: var(--radius-pill); letter-spacing: 0.2px;
+}
+.bd-badge .bd-flag { width: 14px; height: 10px; border-radius: 1px; background: #006a50; position: relative; overflow: hidden; }
+.bd-badge .bd-flag::after { content: ""; position: absolute; left: 50%; top: 50%; transform: translate(-50%,-50%); width: 5px; height: 5px; border-radius: 50%; background: #f42a41; }
+.bd-tagline { color: var(--man-text-dim); font-size: 11px; }
+
+/* emotion indicator */
+.emotion-chip {
+  display: inline-flex; align-items: center; gap: 4px; font-size: 11px;
+  color: var(--man-text-muted); margin-top: 3px;
+}
+
+/* inline "New Chat" button above composer — visible on all screens */
+.new-chat-inline {
+  display: inline-flex; align-items: center; gap: 6px; margin-bottom: 8px;
+  background: var(--man-surface); border: 1px solid var(--man-border);
+  color: var(--man-text-muted); font-size: 12.5px; font-weight: 600;
+  padding: 7px 13px; border-radius: var(--radius-pill); cursor: pointer;
+  transition: all var(--speed) var(--ease);
+}
+.new-chat-inline:hover { border-color: var(--man-primary); color: var(--man-text); }
+.new-chat-inline svg { width: 14px; height: 14px; }

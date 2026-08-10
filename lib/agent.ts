@@ -17,6 +17,7 @@ import { retrieveKnowledge } from "./knowledge";
 import { placesLookup } from "./places";
 import { createPendingAction, PendingAction } from "./approval";
 import { dbEnabled } from "./db";
+import { analyzeEmotion, emotionDirective } from "./emotion";
 
 export interface Turn {
   role: "assistant";
@@ -53,7 +54,17 @@ function isBangla(text: string): boolean {
   return /[\u0980-\u09FF]/.test(text);
 }
 
-function buildSystem(userId: string, userMemory: { key: string; value: string }[], knowledge: string, isAdmin: boolean, lang: "bn" | "en"): string {
+// Real-time context so MAN knows the current date/time and can answer
+// time-aware questions naturally (both EN + BN).
+function realtimeContext(): string {
+  const now = new Date();
+  const time = now.toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" });
+  const date = now.toLocaleDateString("en-GB", { weekday: "long", day: "numeric", month: "long", year: "numeric" });
+  const bnDate = now.toLocaleDateString("bn-BD", { weekday: "long", day: "numeric", month: "long", year: "numeric" });
+  return `\nCURRENT REAL-TIME CONTEXT:\n- Now (local): ${time} on ${date}\n- Bangla date: ${bnDate}\n- Use this to answer time/date questions accurately. Do not guess the date or time.`;
+}
+
+function buildSystem(userId: string, userMemory: { key: string; value: string }[], knowledge: string, isAdmin: boolean, lang: "bn" | "en", emotion: string): string {
   const langRule = lang === "bn"
     ? "\nLANGUAGE RULE: The user wrote in Bangla (Bengali). You MUST reply in Bangla (Bengali) using natural, polite, conversational Bangla. Match the tone and style of a helpful personal assistant. Use Bengali script, not English."
     : "\nLANGUAGE RULE: Reply in the same language the user used (English default).";
@@ -62,7 +73,7 @@ function buildSystem(userId: string, userMemory: { key: string; value: string }[
     : "\nUser memory: (none yet — only state something as a user fact if the user tells you.)";
   const kbBlock = knowledge ? `\nRelevant knowledge about the creator (use only if relevant):\n${knowledge}` : "";
   const role = isAdmin ? " (this user is the creator/admin)" : "";
-  return `${IDENTITY}${role}${langRule}\nCurrent user id: ${userId}${memBlock}${kbBlock}`;
+  return `${IDENTITY}${role}${langRule}${emotion}${realtimeContext()}\nCurrent user id: ${userId}${memBlock}${kbBlock}`;
 }
 
 function isToolIntent(msg: string): "reminder" | "find" | null {
@@ -202,7 +213,9 @@ export async function respond(rawMessage: string, userId: string, isAdmin = fals
   // ---- General conversation -> LLM router ----
   const knowledge = retrieveKnowledge(msg);
   const lang: "bn" | "en" = isBangla(msg) ? "bn" : "en";
-  const system = buildSystem(userId, userMemory, knowledge, isAdmin, lang);
+  const emotionResult = analyzeEmotion(msg);
+  const emotion = emotionDirective(emotionResult);
+  const system = buildSystem(userId, userMemory, knowledge, isAdmin, lang, emotion);
   const historyBlock = history.length
     ? `\nRecent conversation:\n${history.map((h) => `${h.role}: ${h.content}`).join("\n")}`
     : "";
