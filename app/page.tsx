@@ -30,6 +30,7 @@ export default function Page() {
   const [loginMsg, setLoginMsg] = useState("");
   const voiceRef = useRef<VoiceController | null>(null);
   const chatRef = useRef<HTMLDivElement>(null);
+  const sendRef = useRef<(t: string) => void>(() => {});
 
   // login form
   const [loginName, setLoginName] = useState("");
@@ -53,7 +54,7 @@ export default function Page() {
           setMessages(d.conversation.map((c: any) => ({ role: c.role, text: c.content })));
         }
       }
-      const v = createVoice((t) => { setVoiceStatus(""); send(t); });
+      const v = createVoice((t) => { setVoiceStatus(""); sendRef.current(t); });
       if (v) { voiceRef.current = v; setVoiceSupported(true); }
     })();
   }, []);
@@ -81,6 +82,7 @@ export default function Page() {
       setLoading(false);
     }
   }, [loading, speakOn]);
+  sendRef.current = send;
 
   async function login() {
     if (!loginName || !loginPass) { setLoginMsg("Enter name and password"); return; }
@@ -183,7 +185,7 @@ export default function Page() {
         {messages.length === 0 && (
           <div className="msg assistant">
             <div className="bubble">
-              <div className="typing-bubble">Hello! I'm <b>MAN</b> — your personal AI intelligence agent. I remember your preferences, use real tools, and I always ask before I act. How can I help?</div>
+              <div className="typing-bubble">Hello! I&apos;m <b>MAN</b> — your personal AI intelligence agent. I remember your preferences, use real tools, and I always ask before I act. How can I help?</div>
             </div>
           </div>
         )}

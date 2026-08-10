@@ -1,30 +1,51 @@
 import { NextResponse } from "next/server";
 import { respond } from "@/lib/agent";
-import { createPendingAction, resolvePendingAction } from "@/lib/approval";
-import { sendWhatsApp } from "@/lib/whatsapp";
+import { resolvePendingAction } from "@/lib/approval";
+import { sendWhatsApp, verifyTwilioSignature } from "@/lib/whatsapp";
 import { memory } from "@/lib/memory";
 
 export const runtime = "nodejs";
 
-// Inbound WhatsApp webhook (Twilio). Twilio POSTs form-encoded messages here.
-// Expects body: { From, Body } — From is like "whatsapp:+8801..."
-// For approval button taps, Twilio sends the button label as the Body.
+// R2: Build the full request URL Twilio signed. Behind a proxy, reconstruct
+// from forwarded headers so signature verification is correct.
+function requestUrl(req: Request): string {
+  const proto = req.headers.get("x-forwarded-proto") || new URL(req.url).protocol.replace(":", "");
+  const host = req.headers.get("x-forwarded-host") || req.headers.get("host") || "";
+  const path = new URL(req.url).pathname;
+  const search = new URL(req.url).search;
+  return `${proto}://${host}${path}${search}`;
+}
+
+// Inbound WhatsApp webhook (Twilio). Requires a valid X-Twilio-Signature.
+// Spoofed requests are rejected BEFORE any action/approval can occur.
 export async function POST(req: Request) {
   try {
-    const form = await req.formData();
-    const from = String(form.get("From") || "").replace("whatsapp:", "");
-    const body = String(form.get("Body") || "").trim();
+    const signature = req.headers.get("x-twilio-signature");
+    const url = requestUrl(req);
 
+    // Gather POST params for signature + processing.
+    const form = await req.formData();
+    const params: Record<string, string> = {};
+    for (const [k, v] of form.entries()) params[k] = String(v);
+
+    // R2: verify signature — reject spoofed requests before anything else.
+    if (!verifyTwilioSignature(url, params, signature)) {
+      return NextResponse.json({ ok: false }, { status: 401 });
+    }
+
+    const from = String(params.From || "").replace("whatsapp:", "");
+    const body = String(params.Body || "").trim();
     if (!from || !body) {
       return NextResponse.json({ ok: false }, { status: 400 });
     }
 
-    // If the inbound text looks like an approval decision for the last pending
-    // action, route it to the approval gate (MAA Pillar 10).
+    const userId = "wa_" + from.replace(/\D+/g, "");
+
+    // Approval decisions (user-scoped)
     if (/^(approve|yes|confirm|ok)$/i.test(body)) {
       const last = (await listForUser(from)).pop();
       if (last) {
-        await resolvePendingAction(last.id, true);
+        await resolvePendingAction(last.id, true, userId);
         await sendWhatsApp(`whatsapp:${from}`, "✅ Approved — action saved.");
         return NextResponse.json({ ok: true });
       }
@@ -32,25 +53,18 @@ export async function POST(req: Request) {
     if (/^(reject|no|cancel)$/i.test(body)) {
       const last = (await listForUser(from)).pop();
       if (last) {
-        await resolvePendingAction(last.id, false);
+        await resolvePendingAction(last.id, false, userId);
         await sendWhatsApp(`whatsapp:${from}`, "❌ Rejected — nothing saved.");
         return NextResponse.json({ ok: true });
       }
     }
 
-    // Normal agent turn — derive a stable userId from the phone number so
-    // memory/conversations are isolated per WhatsApp number.
-    const userId = "wa_" + from.replace(/\D+/g, "");
     const turn = await respond(body, userId, false);
     let reply = turn.text;
-
-    // If the agent raised a pending action, tell the user to reply Approve/Reject.
     if (turn.pendingAction) {
-      // Bind this pending action to the user so approval can be matched.
       await bindAction(from, turn.pendingAction.id);
       reply += "\n\nReply *Approve* or *Reject* to confirm.";
     }
-
     await sendWhatsApp(`whatsapp:${from}`, reply);
     return NextResponse.json({ ok: true });
   } catch (e: any) {
@@ -59,8 +73,7 @@ export async function POST(req: Request) {
   }
 }
 
-// Minimal per-user pending-action binding. In production, store in Supabase:
-// a small table { phone, action_id }.
+// Per-user pending-action binding (dev in-memory; production -> Supabase).
 const userActions = new Map<string, string[]>();
 async function bindAction(phone: string, actionId: string) {
   const arr = userActions.get(phone) || [];
@@ -72,7 +85,7 @@ async function listForUser(phone: string) {
   const { getPendingAction } = await import("@/lib/approval");
   const out = [];
   for (const id of ids) {
-    const a = await getPendingAction(id);
+    const a = await getPendingAction(id, "wa_" + phone.replace(/\D+/g, ""));
     if (a) out.push(a);
   }
   return out;

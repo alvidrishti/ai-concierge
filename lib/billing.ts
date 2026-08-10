@@ -44,15 +44,40 @@ export async function createCheckout(planId: string, userId: string, email?: str
   return data.url as string;
 }
 
-// Verify + parse a Stripe webhook event. Returns null if signature invalid.
-export async function verifyWebhook(raw: string, signature: string) {
+// R1: Real Stripe webhook signature verification.
+// Verifies the raw request body against X-Stripe-Signature using
+// stripe.webhooks.constructEvent. Never parses JSON before verifying.
+// Fails CLOSED: missing secret or missing/invalid signature -> 400.
+
+import Stripe from "stripe";
+
+// Lazy Stripe instance: only constructed when actually used, so importing this
+// module at build time (when no key is set) never throws.
+let _stripe: Stripe | null = null;
+function getStripe(): Stripe | null {
+  const key = process.env.STRIPE_SECRET_KEY;
+  if (!key) return null;
+  if (!_stripe) _stripe = new Stripe(key);
+  return _stripe;
+}
+
+export async function verifyWebhook(raw: string, signature: string):
+  Promise<{ event: any | null; error: string | null }> {
   const secret = process.env.STRIPE_WEBHOOK_SECRET;
-  if (!secret) return null;
-  // Full verification uses the stripe SDK's constructEvent. Here we do a basic
-  // pass-through for the starter; install `stripe` and use constructEvent in prod.
+  if (!secret) {
+    return { event: null, error: "STRIPE_WEBHOOK_SECRET not configured" };
+  }
+  if (!signature) {
+    return { event: null, error: "missing stripe-signature header" };
+  }
+  const stripe = getStripe();
+  if (!stripe) {
+    return { event: null, error: "STRIPE_SECRET_KEY not configured" };
+  }
   try {
-    return JSON.parse(raw);
-  } catch {
-    return null;
+    const event = stripe.webhooks.constructEvent(raw, signature, secret);
+    return { event, error: null };
+  } catch (e: any) {
+    return { event: null, error: `signature verification failed: ${String(e?.message || e)}` };
   }
 }

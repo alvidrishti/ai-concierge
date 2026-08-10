@@ -30,7 +30,12 @@ export async function POST(req: Request) {
       const existing = await db.select("users", `&id=eq.${userId}`).catch(() => []);
       if (existing.length) {
         const user: any = existing[0];
-        if (user.password_hash && user.password_hash !== hashPassword(password)) {
+        // R6: an empty/missing password_hash must never behave like a valid
+        // credential — reject rather than allowing any-password access.
+        if (!user.password_hash || user.password_hash.length < 16) {
+          return NextResponse.json({ error: "account requires password reset" }, { status: 403 });
+        }
+        if (user.password_hash !== hashPassword(password)) {
           return NextResponse.json({ error: "incorrect password" }, { status: 401 });
         }
       } else {

@@ -1,9 +1,18 @@
 // MAN — Rate limiting + usage monitoring.
 //
 // Limits are configurable via env (MAN_TEXT_DAILY, MAN_VOICE_MIN_DAILY) and
-// NOT hardcoded. Uses in-memory counters (per process) as a fast guard, and
-// persists usage to Supabase for the admin view. Production should also use
-// a Redis/Vercel KV counter for multi-instance accuracy.
+// NOT hardcoded.
+//
+// SECURITY / DEPLOYMENT NOTE (R-rate):
+// The rate-limit counters are PROCESS-LOCAL (in-memory Maps). This is safe for
+// the current target of 10 trusted users on a single Next.js instance and on
+// Vercel's serverless where each instance enforces its own budget — the app
+// does NOT claim a globally-consistent limit. If the deployment scales to many
+// serverless instances or many more users, move the counters to a shared store
+// (Vercel KV / Redis) for globally accurate limiting. No single user can
+// exhaust another user's budget because counters are keyed by userId.
+//
+// Usage is persisted to Supabase for the admin view.
 
 import { db, dbEnabled } from "./db";
 

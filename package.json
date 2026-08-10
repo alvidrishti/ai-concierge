@@ -2,7 +2,7 @@
   "name": "man-ai-agent",
   "version": "1.0.0",
   "private": true,
-  "description": "MAN \u2014 Personal AI Intelligence Agent. Created by MD Rayhan Mia, Rangpur, Bangladesh. Multi-user, private, voice + text, AI provider routing, approval gate.",
+  "description": "MAN — Personal AI Intelligence Agent. Created by MD Rayhan Mia, Rangpur, Bangladesh. Multi-user, private, voice + text, AI provider routing, approval gate.",
   "scripts": {
     "dev": "next dev",
     "build": "next build",
@@ -12,12 +12,15 @@
   "dependencies": {
     "next": "^14.2.5",
     "react": "^18.3.1",
-    "react-dom": "^18.3.1"
+    "react-dom": "^18.3.1",
+    "stripe": "^22.4.0"
   },
   "devDependencies": {
     "@types/node": "^20.14.0",
     "@types/react": "^18.3.3",
     "@types/react-dom": "^18.3.0",
+    "eslint": "^8.57.1",
+    "eslint-config-next": "^14.2.35",
     "tsx": "^4.23.11",
     "typescript": "^5.5.0"
   }

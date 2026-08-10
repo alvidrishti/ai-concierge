@@ -4,13 +4,13 @@ import { verifyWebhook } from "@/lib/billing";
 export const runtime = "nodejs";
 
 // POST /api/billing/webhook — Stripe sends checkout.session.completed here.
-// For production, verify the signature with the stripe SDK:
-//   const event = stripe.webhooks.constructEvent(rawBody, sig, webhookSecret)
+// R1: signature verified against the RAW body BEFORE any JSON parsing.
 export async function POST(req: Request) {
-  const raw = await req.text();
+  const raw = await req.text(); // raw body — used for signature verification
   const sig = req.headers.get("stripe-signature") || "";
-  const event = await verifyWebhook(raw, sig);
+  const { event, error } = await verifyWebhook(raw, sig);
   if (!event) {
+    // Reject invalid/missing signature — never trust unverified events.
     return NextResponse.json({ error: "invalid signature" }, { status: 400 });
   }
   if (event.type === "checkout.session.completed") {
