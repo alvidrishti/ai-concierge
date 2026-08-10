@@ -90,7 +90,18 @@ function realtimeContext(): string {
   return `\nCURRENT REAL-TIME CONTEXT:\n- Now (local): ${time} on ${date}\n- Bangla date: ${bnDate}\n- Use this to answer time/date questions accurately. Do not guess the date or time.`;
 }
 
-function buildSystem(userId: string, userMemory: { key: string; value: string }[], knowledge: string, isAdmin: boolean, lang: "bn" | "banglish" | "en", emotion: string): string {
+// Map a user's chosen personality setting into a tone directive.
+function personalityDirective(personality?: string): string {
+  switch ((personality || "").toLowerCase()) {
+    case "casual": return "\nPERSONALITY: Be casual, friendly, informal — like a friend. Use a relaxed tone.";
+    case "professional": return "\nPERSONALITY: Be professional, clear, and business-like.";
+    case "funny": return "\nPERSONALITY: Be lighthearted and humorous when appropriate.";
+    case "formal": return "\nPERSONALITY: Be formal and polite, using respectful language.";
+    default: return "";
+  }
+}
+
+function buildSystem(userId: string, userMemory: { key: string; value: string }[], knowledge: string, isAdmin: boolean, lang: "bn" | "banglish" | "en", emotion: string, personality?: string): string {
   const langRule = lang === "bn"
     ? "\nLANGUAGE RULE: The user wrote in Bangla (Bengali). You MUST reply in Bangla (Bengali) using natural, polite, conversational Bangla. Use Bengali script, not English."
     : lang === "banglish"
@@ -101,7 +112,7 @@ function buildSystem(userId: string, userMemory: { key: string; value: string }[
     : "\nUser memory: (none yet — only state something as a user fact if the user tells you.)";
   const kbBlock = knowledge ? `\nRelevant knowledge about the creator (use only if relevant):\n${knowledge}` : "";
   const role = isAdmin ? " (this user is the creator/admin)" : "";
-  return `${IDENTITY}${role}${langRule}${emotion}${realtimeContext()}\nCurrent user id: ${userId}${memBlock}${kbBlock}`;
+  return `${IDENTITY}${role}${langRule}${personalityDirective(personality)}${emotion}${realtimeContext()}\nCurrent user id: ${userId}${memBlock}${kbBlock}`;
 }
 
 // Add personal identity context to the general LLM call when the user asks
@@ -112,11 +123,48 @@ function personalContext(query: string): string {
   return `\nPERSONAL FACTS ABOUT THE CREATOR MD RAYHAN MIA (answer naturally, warmly, using these as true facts — this is the user asking about MAN's creator):\n${p}`;
 }
 
-function isToolIntent(msg: string): "reminder" | "find" | null {
+function isToolIntent(msg: string): "reminder" | "find" | "weather" | "calc" | "web" | null {
   const low = msg.toLowerCase();
   if (/remind|reminder|appointment|schedule|book/.test(low)) return "reminder";
   if (/find|compare|options|near|suggest|recommend/.test(low)) return "find";
+  if (/weather|আবহাওয়া|কেমন আবহাওয়া|temperature|কত ডিগ্রি/.test(low)) return "weather";
+  if (/(\d+\s*[+\-*\/^x]\s*\d+|\b(plus|minus|times|divided by|add|subtract|multiply)\b)/.test(low)) return "calc";
+  if (/\b(search|look up|google|what is .*\?|who is)\b/.test(low) && /(search|look up|google)/.test(low)) return "web";
   return null;
+}
+
+// ---- Tool: simple calculator (safe, deterministic) ----
+function calc(text: string): string | null {
+  const m = text.toLowerCase().replace(/plus/g, "+").replace(/minus/g, "-").replace(/times|multiplied by/g, "*").replace(/divided by/g, "/").replace(/x/g, "*");
+  const expr = m.match(/(-?\d+(?:\.\d+)?)\s*([+\-*/])\s*(-?\d+(?:\.\d+)?)/);
+  if (!expr) return null;
+  const a = parseFloat(expr[1]); const op = expr[2]; const b = parseFloat(expr[3]);
+  let r: number;
+  switch (op) {
+    case "+": r = a + b; break;
+    case "-": r = a - b; break;
+    case "*": r = a * b; break;
+    case "/": if (b === 0) return "Cannot divide by zero."; r = a / b; break;
+    default: return null;
+  }
+  return `${a} ${op} ${b} = ${Math.round(r * 100) / 100}`;
+}
+
+// ---- Tool: weather (Open-Meteo, free, no key) ----
+async function weatherTool(text: string): Promise<string | null> {
+  const city = text.toLowerCase().replace(/weather|আবহাওয়া|temperature|in|for|কেমন|কত|ডিগ্রি|আবহাওয়া কেমন|weather in|temperature in/g, "").trim();
+  if (!city) return null;
+  try {
+    const geo = await (await fetch(`https://geocoding-api.open-meteo.com/v1/search?count=1&name=${encodeURIComponent(city)}`)).json();
+    if (!geo?.results?.[0]) return `I couldn't find weather for "${city}".`;
+    const { latitude, longitude, name } = geo.results[0];
+    const w = await (await fetch(`https://api.open-meteo.com/v1/forecast?latitude=${latitude}&longitude=${longitude}&current_weather=true`)).json();
+    const t = w?.current_weather?.temperature;
+    if (t === undefined) return `I couldn't get weather for ${name}.`;
+    return `Weather in **${name}**: ${t}°C, wind ${w.current_weather.windspeed} km/h.`;
+  } catch {
+    return `I couldn't reach the weather service right now.`;
+  }
 }
 
 // ---- Phase 4: memory command detection (precise, never ambiguous) ----
@@ -189,6 +237,25 @@ export async function respond(rawMessage: string, userId: string, isAdmin = fals
     return { role: "assistant", text: reply, memoryUsed: true };
   }
 
+  // ---- Settings: language + personality (feature 3 & 4) ----
+  const langSet = low.match(/(?:set language|language|ভাষা)\s*(?:to|to be|=)?\s*(bangla|bengali|banglish|english|বাংলা|ইংরেজি)/);
+  if (langSet) {
+    const v = langSet[1].toLowerCase();
+    const key = /বাংলা|bangla|bengali/.test(v) ? "bn" : /banglish/.test(v) ? "banglish" : "en";
+    await memory.setMemory(userId, "lang", key);
+    const reply = key === "bn" ? "ঠিক আছে — আমি এখন বাংলায় কথা বলব।" : key === "banglish" ? "ঠিক আছে — আমি এখন Banglish style-এ কথা বলব।" : "Okay — I'll reply in English now.";
+    await memory.saveConversation(userId, targetThread, "assistant", reply);
+    return { role: "assistant", text: reply, memoryUsed: true };
+  }
+  const persSet = low.match(/(?:be|set personality to|personality)\s*(casual|professional|formal|funny)/);
+  if (persSet) {
+    const p = persSet[1].toLowerCase();
+    await memory.setMemory(userId, "personality", p);
+    const reply = `Got it — I'll adopt a **${p}** tone from now on.`;
+    await memory.saveConversation(userId, targetThread, "assistant", reply);
+    return { role: "assistant", text: reply, memoryUsed: true };
+  }
+
   // ---- Phase 4: memory commands (explicit intent only, never invent) ----
   const mcmd = memoryCommand(low);
   if (mcmd) {
@@ -246,6 +313,43 @@ export async function respond(rawMessage: string, userId: string, isAdmin = fals
     return { role: "assistant", text, tool: "places_lookup", memoryUsed: true };
   }
 
+  // ---- Tool: calculator (deterministic, safe) ----
+  if (tool === "calc") {
+    const result = calc(msg);
+    if (result) {
+      await memory.saveConversation(userId, targetThread, "assistant", result);
+      return { role: "assistant", text: result, tool: "calculator", memoryUsed: true };
+    }
+  }
+
+  // ---- Tool: weather (live API) ----
+  if (tool === "weather") {
+    const result = await weatherTool(msg);
+    if (result) {
+      await memory.saveConversation(userId, targetThread, "assistant", result);
+      return { role: "assistant", text: result, tool: "weather", memoryUsed: true };
+    }
+  }
+
+  // ---- Tool: web search (DuckDuckGo HTML, graceful fallback) ----
+  if (tool === "web") {
+    const q = msg.replace(/(search|look up|google|for)/gi, "").trim();
+    if (q) {
+      try {
+        const r = await (await fetch(`https://html.duckduckgo.com/html/?q=${encodeURIComponent(q)}`, { headers: { "User-Agent": "Mozilla/5.0" } })).text();
+        const link = r.match(/result__a[^>]*>(.*?)<\/a>/);
+        const text = link ? link[1].replace(/<[^>]+>/g, "") : null;
+        const res = text ? `Here's what I found for "${q}": **${text}**. (From live web search.)` : `I couldn't find results for "${q}".`;
+        await memory.saveConversation(userId, targetThread, "assistant", res);
+        return { role: "assistant", text: res, tool: "web_search", memoryUsed: true };
+      } catch {
+        const res = `I couldn't reach web search right now.`;
+        await memory.saveConversation(userId, targetThread, "assistant", res);
+        return { role: "assistant", text: res, tool: "web_search", memoryUsed: true };
+      }
+    }
+  }
+
   // ---- Tool: reminder (consequential -> approval gate) ----
   if (tool === "reminder") {
     const when = low.match(/(next \w+day|tomorrow|today)( at \d{1,2}(:\d{2})?\s*(am|pm))?/)?.[0] || "soon";
@@ -265,7 +369,12 @@ export async function respond(rawMessage: string, userId: string, isAdmin = fals
   const lang: "bn" | "banglish" | "en" = isBangla(msg) ? "bn" : "en";
   const emotionResult = analyzeEmotion(msg);
   const emotion = emotionDirective(emotionResult);
-  const system = buildSystem(userId, userMemory, knowledge, isAdmin, lang, emotion) + personal;
+  // User settings: preferred language + personality (stored in memory, e.g.
+  // via "set language bangla" / "be casual").
+  const prefLang = userMemory.find((m) => m.key === "lang")?.value;
+  const effLang: "bn" | "banglish" | "en" = prefLang === "bn" ? "bn" : prefLang === "banglish" ? "banglish" : lang;
+  const personality = userMemory.find((m) => m.key === "personality")?.value;
+  const system = buildSystem(userId, userMemory, knowledge, isAdmin, effLang, emotion, personality) + personal;
   const historyBlock = history.length
     ? `\nRecent conversation:\n${history.map((h) => `${h.role}: ${h.content}`).join("\n")}`
     : "";

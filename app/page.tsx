@@ -201,6 +201,22 @@ export default function Page() {
     loadThreads();
   }
 
+  async function exportChat() {
+    // Download the current conversation as a .md file
+    const q = activeThread ? `?threadId=${encodeURIComponent(activeThread)}` : "";
+    try {
+      const res = await fetch(`/api/export${q}`);
+      if (!res.ok) return;
+      const blob = await res.blob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = "man-chat.md";
+      a.click();
+      URL.revokeObjectURL(url);
+    } catch { /* ignore */ }
+  }
+
   async function logout() {
     await fetch("/api/auth/logout", { method: "POST" });
     setAuth(null); setView("login"); setMessages([]); setMemories([]); setThreads([]);
@@ -467,9 +483,16 @@ export default function Page() {
           )}
 
       <div className="composer">
-        <button className="new-chat-inline" onClick={newChat} title="Start a new conversation" aria-label="New conversation">
-          <PlusIcon /> New Chat{activeThread ? "" : " (current)"}
-        </button>
+        <div className="composer-tools">
+          <button className="new-chat-inline" onClick={newChat} title="Start a new conversation" aria-label="New conversation">
+            <PlusIcon /> New Chat
+          </button>
+          <button className="new-chat-inline" onClick={() => send("set language bangla")} title="Reply in Bangla" aria-label="Set language Bangla">🇧🇩 Bangla</button>
+          <button className="new-chat-inline" onClick={() => send("set language english")} title="Reply in English" aria-label="Set language English">EN</button>
+          <button className="new-chat-inline" onClick={() => send("be casual")} title="Casual tone" aria-label="Casual tone">😄 Casual</button>
+          <button className="new-chat-inline" onClick={() => send("be professional")} title="Professional tone" aria-label="Professional tone">💼 Pro</button>
+          <button className="new-chat-inline" onClick={exportChat} title="Export conversation" aria-label="Export conversation">⬇ Export</button>
+        </div>
         <div className="input-row">
               <input value={input} onChange={(e) => setInput(e.target.value)}
                 onKeyDown={(e) => e.key === "Enter" && send(input)}

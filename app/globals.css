@@ -428,3 +428,7 @@ button { font-family: inherit; }
 }
 .new-chat-inline:hover { border-color: var(--man-primary); color: var(--man-text); }
 .new-chat-inline svg { width: 14px; height: 14px; }
+
+/* composer tools row (New Chat, Bangla, EN, tone, export) */
+.composer-tools { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 8px; }
+.composer-tools .new-chat-inline { margin-bottom: 0; font-size: 11.5px; padding: 6px 11px; }
