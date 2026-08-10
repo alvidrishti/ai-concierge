@@ -386,3 +386,17 @@ button { font-family: inherit; }
 .provider-row { display: flex; justify-content: space-between; padding: 6px 10px; background: var(--man-surface-elevated); border-radius: var(--radius-sm); }
 .provider-row .ok { color: var(--man-success); }
 .provider-row .dim { color: var(--man-text-dim); }
+
+/* ============ OAuth social login ============ */
+.auth-divider { display: flex; align-items: center; gap: 10px; margin: 20px 0 14px; color: var(--man-text-dim); font-size: 12px; }
+.auth-divider::before, .auth-divider::after { content: ""; flex: 1; height: 1px; background: var(--man-border); }
+.social-btns { display: flex; flex-direction: column; gap: 9px; }
+.social-btn {
+  display: flex; align-items: center; justify-content: center; gap: 9px; width: 100%;
+  padding: 11px; border-radius: var(--radius-md); border: 1px solid var(--man-border);
+  background: var(--man-surface); color: var(--man-text); font-size: 14px; font-weight: 600; cursor: pointer;
+  transition: all var(--speed) var(--ease);
+}
+.social-btn:hover { background: var(--man-surface-hover); border-color: var(--man-border-strong); }
+.social-btn:focus-visible { outline: 2px solid var(--man-primary); outline-offset: 2px; }
+.social-btn svg { flex: 0 0 auto; }
