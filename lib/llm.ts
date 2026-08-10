@@ -69,7 +69,7 @@ const groq: Provider = {
 const openrouter: Provider = {
   name: "openrouter",
   enabled: !!key("OPENROUTER_API_KEY"),
-  model: process.env.MAN_OPENROUTER_MODEL || "meta-llama/llama-3.3-70b-instruct:free",
+  model: process.env.MAN_OPENROUTER_MODEL || "meta-llama/llama-3.3-70b-instruct",
   url: "https://openrouter.ai/api/v1/chat/completions",
   headers: { "Content-Type": "application/json", Authorization: `Bearer ${key("OPENROUTER_API_KEY")}` },
   body: (prompt, sys) => ({

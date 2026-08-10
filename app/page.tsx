@@ -390,7 +390,7 @@ export default function Page() {
                 {m.role === "assistant" && (<div className="man-avatar"><ManMark size={28} /></div>)}
                 <div className="msg-body">
                   <div className="bubble" dangerouslySetInnerHTML={{ __html: renderMarkdown(m.text) }} />
-                  {m.provider && (<div className="provider-tag"><span className="dot"></span>{m.provider}</div>)}
+                  {m.provider && (<div className="provider-tag"><span className="dot"></span>MAN</div>)}
                   {m.pendingAction && (
                     <div className="approval" role="group" aria-label="Approval required">
                       <div className="approval-title">🔒 Approval required</div>
