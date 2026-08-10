@@ -1,0 +1,12 @@
+{
+  "name": "MAN — Personal AI Intelligence Agent",
+  "short_name": "MAN",
+  "description": "Personal AI Intelligence Agent created by MD RAYHAN MIA, Rangpur, Bangladesh.",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#0b0e14",
+  "theme_color": "#0b0e14",
+  "icons": [
+    { "src": "/icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any maskable" }
+  ]
+}
