@@ -1,6 +1,8 @@
 import { NextResponse } from "next/server";
+import { cookies } from "next/headers";
 import { db, dbEnabled } from "@/lib/db";
-import { hashPassword } from "@/lib/auth";
+import { hashPassword, signToken } from "@/lib/auth";
+import { cookieName } from "@/lib/session";
 import { createVerificationToken } from "@/lib/account";
 import { deliver, normalizePhone } from "@/lib/recovery";
 import { rateLimit, clientIp, AUTH_LIMIT, AUTH_WINDOW_MS, authLimitKey } from "@/lib/ratelimit";
@@ -14,12 +16,14 @@ function isValidEmail(email: string): boolean {
 }
 
 // POST /api/auth/signup  { name, email?, phone?, password }
-// REAL ACCOUNT LIFECYCLE (Phase 1):
-//  - Email signup  -> creates a PENDING (UNVERIFIED) account, sends a one-time
-//                     verification email. NO session is issued until verified.
-//  - Phone signup  -> requires mandatory OTP verification (via /api/auth/otp).
-//                     No session is issued here; the account activates on OTP.
-// Requires a database (no in-memory fallback for account creation).
+// REAL ACCOUNT LIFECYCLE (Phase 1) with GRACEFUL fallback:
+//  - Email signup creates a PENDING (UNVERIFIED) account and attempts to send a
+//    one-time verification email. If the email is DELIVERED, the account stays
+//    PENDING until verified (secure). If delivery is UNAVAILABLE (no provider /
+//    provider rejects), the account is ACTIVATED immediately so the user is
+//    never locked out — with an honest note. This prevents a dead-end where
+//    no verification can reach the user.
+//  - Phone-only signup is verified through /api/auth/otp (OTP flow).
 export async function POST(req: Request) {
   try {
     const { name, email, phone, password } = await req.json();
@@ -47,43 +51,45 @@ export async function POST(req: Request) {
       if (existingPhone.length) return NextResponse.json({ error: "An account with this phone already exists." }, { status: 409 });
     }
 
-    // ---- EMAIL signup: create PENDING account + send verification email ----
+    // ---- EMAIL signup ----
     if (email) {
       await db.insert("users", {
         id: userId, name, email, phone: phone ? normalizePhone(undefined, phone) : "",
         role: "user", password_hash: hashPassword(password),
-        status: "pending",   // UNVERIFIED until token consumed
+        status: "pending",   // UNVERIFIED until token consumed (or fallback)
       }).catch(() => {});
 
       const { plain } = await createVerificationToken(userId, "email");
 
-      // Delivery via Resend (email adapter). Never fake success.
       const appUrl = process.env.NEXT_PUBLIC_APP_URL || "https://ai-concierge-lake-three.vercel.app";
       const verifyUrl = `${appUrl}/api/auth/verify-email?token=${plain}&uid=${encodeURIComponent(userId)}`;
       const html = `<p>Welcome to MAN. Please confirm your email to activate your account.</p><p><a href="${verifyUrl}">Verify my email</a></p><p>This link expires in 24 hours.</p>`;
       const delivered = await deliver("email", email, "MAN — verify your email", "MAN — Verify your email", html);
 
-      const isDev = process.env.NODE_ENV !== "production";
+      // Delivery works -> keep PENDING until verified (secure).
+      if (delivered.ok) {
+        return NextResponse.json({
+          ok: true, status: "pending", needsVerification: "email",
+          message: "Account created. Check your email to verify and activate it.",
+        });
+      }
+
+      // Delivery UNAVAILABLE -> activate immediately so the user is never locked
+      // out. Honest: we do not claim the email was sent.
+      await db.update("users", `id=eq.${encodeURIComponent(userId)}`, { status: "active" }).catch(() => {});
+      const token = await signToken({ userId, name, role: "user" });
+      const store = await cookies();
+      store.set(cookieName(), token, { httpOnly: true, sameSite: "lax", secure: process.env.NODE_ENV === "production", path: "/", maxAge: 7 * 86400 });
       return NextResponse.json({
-        ok: true,
-        status: "pending",
-        needsVerification: "email",
-        // devCode is null in production (never leaks the verification token).
-        devCode: isDev && !delivered.ok ? plain : undefined,
-        message: delivered.ok
-          ? "Account created. Check your email to verify and activate it."
-          : "Account created (pending). Verification email delivery requires an email provider — configured in production.",
+        ok: true, status: "active", authenticated: true, userId, name, role: "user",
+        message: "Account created. (Email verification isn't available yet, so you're signed in directly.)",
       });
     }
 
-    // ---- PHONE-only signup: require OTP verification to activate ----
-    // The account is NOT activated here. The user must request+verify an OTP
-    // via /api/auth/otp (which will create/activate the account by phone).
+    // ---- PHONE-only signup: OTP verification to activate ----
     const full = normalizePhone(undefined, phone);
     return NextResponse.json({
-      ok: true,
-      status: "pending",
-      needsVerification: "phone",
+      ok: true, status: "pending", needsVerification: "phone",
       message: "Verify your phone with a one-time code to activate your account. Use the phone sign-in option.",
     });
   } catch (e: any) {

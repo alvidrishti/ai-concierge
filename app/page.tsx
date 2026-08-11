@@ -313,9 +313,13 @@ export default function Page() {
     const d = await res.json();
     setAuthBusy(false);
     if (d.ok) {
-      // Phase 1 account lifecycle: email/phone signup now requires verification
-      // before any session is issued, so do NOT auto-login here.
-      if (d.needsVerification === "email") {
+      // Phase 1 account lifecycle. If signup returns authenticated (graceful
+      // fallback when email delivery is unavailable), log the user in directly.
+      if (d.authenticated) {
+        setAuth({ id:d.userId, name:d.name, role:d.role }); setView("chat");
+        if (!localStorage.getItem("man_onboarded_"+d.userId)){ setShowOnboarding(true); setOnboardStep(0);}
+        loadThreads();
+      } else if (d.needsVerification === "email") {
         setLoginMsg(d.message || "Check your email to verify your account, then log in.");
         setAuthMode("landing");
       } else if (d.needsVerification === "phone") {

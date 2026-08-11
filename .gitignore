@@ -8,3 +8,5 @@ output/*
 !output/deploy_proof.png
 !output/Tether_Portfolio_Report.pdf
 .github/workflows/ci.yml
+.vercel
+.env*
