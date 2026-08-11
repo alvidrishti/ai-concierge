@@ -73,6 +73,10 @@ export default function Page() {
   const [fbCategory, setFbCategory] = useState("general");
   const [fbMessage, setFbMessage] = useState("");
   const [fbSent, setFbSent] = useState(false);
+  const [sessOpen, setSessOpen] = useState(false);
+  const [sessions, setSessions] = useState<any[]>([]);
+  const [capsOpen, setCapsOpen] = useState(false);
+  const [caps, setCaps] = useState<any[]>([]);
   const [langPref, setLangPref] = useState("auto");
   const [tonePref, setTonePref] = useState("auto");
 
@@ -255,8 +259,7 @@ export default function Page() {
     loadThreads();
   }
 
-  async function logout() {
-    await fetch("/api/auth/logout", { method: "POST" });
+  async function logout() {    await fetch("/api/auth/logout", { method: "POST" });
     setAuth(null); setView("login"); setMessages([]); setMemories([]); setThreads([]);
   }
 
@@ -301,6 +304,30 @@ export default function Page() {
       if (d.ok) { setFbSent(true); setFbMessage(""); setTimeout(() => { setFbSent(false); setFeedbackOpen(false); }, 1800); }
       else setLoginMsg(d.error || "Couldn't submit.");
     } catch { setLoginMsg("Couldn't submit feedback."); }
+  }
+  // Sessions / device security (Phase 1) — list + revoke.
+  async function loadSessions() {
+    try {
+      const res = await fetch("/api/auth/sessions");
+      const d = await res.json();
+      if (d.sessions) { setSessions(d.sessions); setSessOpen(true); }
+    } catch {}
+  }
+  async function revokeSession(jti: string) {
+    await fetch("/api/auth/sessions", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action: "revoke", jti }) });
+    loadSessions();
+  }
+  async function revokeAllSessions() {
+    await fetch("/api/auth/sessions", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action: "revoke_all" }) });
+    setSessOpen(false); setAuth(null); setView("login");
+  }
+  // Capability registry view (Phase 3/14) — honest what MAN can/can't do.
+  async function loadCapabilities() {
+    try {
+      const res = await fetch("/api/capabilities");
+      const d = await res.json();
+      if (d.capabilities) { setCaps(d.capabilities); setCapsOpen(true); }
+    } catch {}
   }
 
   // ============ LOGIN ============
@@ -645,6 +672,12 @@ export default function Page() {
             </div>
             <div className="panel-title" style={{ marginTop: 12 }}>Account</div>
             <div className="setting-group">
+              <button className="action-row" onClick={() => { setSettingsOpen(false); loadCapabilities(); }}>
+                <IconGlobe size={16} /> <span>What MAN can do</span>
+              </button>
+              <button className="action-row" onClick={() => { setSettingsOpen(false); loadSessions(); }}>
+                <IconSettings size={16} /> <span>Security &amp; sessions</span>
+              </button>
               <button className="action-row" onClick={() => { setSettingsOpen(false); setFeedbackOpen(true); }}>
                 <IconFeedback size={16} /> <span>Send feedback</span>
               </button>
@@ -698,6 +731,45 @@ export default function Page() {
               </ul>
               <div className="auth-err" role="alert">Billing is not connected yet — Pro will be available when payment is enabled.</div>
               <button className="reject" style={{ marginTop: 8 }} onClick={() => setSubOpen(false)}>Close</button>
+            </div>
+          </div>
+        )}
+
+        {sessOpen && (
+          <div className="modal-overlay" onClick={() => setSessOpen(false)}>
+            <div className="modal" onClick={(e) => e.stopPropagation()}>
+              <div className="modal-title">Security &amp; sessions</div>
+              {sessions.length === 0 && <p className="muted">No active sessions.</p>}
+              {sessions.map((s) => (
+                <div key={s.jti} className="session-row">
+                  <span className="session-device">{s.device ? s.device.slice(0, 40) : "Unknown device"}</span>
+                  <span className="session-ts">{s.last_seen_at ? "active " + relativeTime(s.last_seen_at) : "recent"}</span>
+                  {s.current && <span className="ok">(current)</span>}
+                  {!s.revoked && <button className="mini" onClick={() => revokeSession(s.jti)}>Revoke</button>}
+                </div>
+              ))}
+              <div style={{ display: "flex", gap: 8, marginTop: 14 }}>
+                <button className="ghost danger" onClick={revokeAllSessions}>Log out all devices</button>
+                <button className="reject" onClick={() => setSessOpen(false)}>Close</button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {capsOpen && (
+          <div className="modal-overlay" onClick={() => setCapsOpen(false)}>
+            <div className="modal" onClick={(e) => e.stopPropagation()}>
+              <div className="modal-title">What MAN can do</div>
+              <p className="muted">Honest capability status — what is live now vs. planned.</p>
+              <div className="caps-list">
+                {caps.map((c: any) => (
+                  <div key={c.id} className={`cap-row ${c.status}`}>
+                    <div className="cap-name"><b>{c.name}</b> <span className={`cap-status ${c.status}`}>{c.status}</span></div>
+                    <div className="cap-desc">{c.description}</div>
+                  </div>
+                ))}
+              </div>
+              <button className="reject" style={{ marginTop: 12 }} onClick={() => setCapsOpen(false)}>Close</button>
             </div>
           </div>
         )}

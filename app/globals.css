@@ -381,3 +381,23 @@ button { font-family: inherit; color: inherit; }
   padding: 12px; font-size: 0.9rem; margin-top: 10px; resize: vertical;
 }
 .fb-input:focus { outline: none; border-color: var(--man-primary); }
+
+/* ===== Sessions / Capabilities ===== */
+.session-row {
+  display: flex; align-items: center; gap: 10px;
+  padding: 9px 0; border-bottom: 1px solid var(--man-border);
+  font-size: 0.85rem;
+}
+.session-device { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.session-ts { color: var(--man-text-dim); font-size: 0.78rem; }
+.caps-list { margin-top: 8px; max-height: 320px; overflow-y: auto; }
+.cap-row { padding: 9px 0; border-bottom: 1px solid var(--man-border); }
+.cap-name { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.cap-desc { color: var(--man-text-dim); font-size: 0.82rem; margin-top: 3px; }
+.cap-status { font-size: 0.7rem; font-weight: 700; text-transform: uppercase; letter-spacing: .03em;
+  border-radius: var(--radius-sm); padding: 2px 8px; }
+.cap-status.available { color: #0a0a0f; background: var(--man-success); }
+.cap-status.requires_credential { color: var(--man-text); background: #7a5cff22; border: 1px solid #7a5cff55; }
+.cap-status.future_pro { color: #ffd166; background: #ffd16622; border: 1px solid #ffd16644; }
+.cap-status.not_supported { color: var(--man-danger); background: #ff6b6b1f; border: 1px solid #ff6b6b44; }
+.cap-status.coming, .cap-status.degraded { color: var(--man-text-muted); background: #ffffff14; }
