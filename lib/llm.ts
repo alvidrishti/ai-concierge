@@ -1,6 +1,6 @@
 // MAN — AI Provider Router
 //
-// Priority: Gemini -> Groq -> DeepSeek -> OpenRouter -> GitHub Models -> friendly error.
+// Priority: Groq (multi-key rotation) -> DeepSeek -> Gemini -> OpenRouter -> GitHub.
 // All keys stay server-side (Vercel env vars). Never expose to browser.
 // No fake responses: if a provider fails, we FAIL OVER or return a clear
 // error — we never fabricate a success.
@@ -123,7 +123,10 @@ const github: Provider = {
   parse: (d: any) => ({ text: d?.choices?.[0]?.message?.content || "" }),
 };
 
-const CHAIN: Provider[] = [gemini, ...groq, deepseek, openrouter, github];
+// Main router priority: Groq (multi-key) -> DeepSeek -> Gemini -> OpenRouter -> GitHub.
+// Groq is tried first because it is the most reliable/available provider; each
+// Groq key is its own entry so rate-limit on one falls through to the next.
+const CHAIN: Provider[] = [...groq, deepseek, gemini, openrouter, github];
 export const activeProviders = CHAIN.filter((p) => p.enabled).map((p) => p.name);
 
 async function callProvider(p: Provider, prompt: string, sys: string): Promise<LLMResult> {
