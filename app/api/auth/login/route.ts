@@ -19,8 +19,9 @@ export const runtime = "nodejs";
 export async function POST(req: Request) {
   try {
     const { name, email, password, isAdmin } = await req.json();
-    if (!name || !password) {
-      return NextResponse.json({ error: "name and password required" }, { status: 400 });
+    // Email OR name is the identifier (email-mode UI sends name="", email set).
+    if ((!email && !name) || !password) {
+      return NextResponse.json({ error: "email/name and password required" }, { status: 400 });
     }
     const account = (email || name || "").toLowerCase();
     const rl = rateLimit(clientIp(req), { limit: AUTH_LIMIT, windowMs: AUTH_WINDOW_MS, key: authLimitKey(account) });
