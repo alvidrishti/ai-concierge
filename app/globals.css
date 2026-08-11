@@ -344,3 +344,40 @@ button { font-family: inherit; color: inherit; }
   animation: manSplashFade .5s var(--ease) forwards;
 }
 @keyframes manSplashFade { to { opacity: 1 } }
+
+/* ===== Pro / Feedback UI (Phase 4 + 7) ===== */
+.pro-chip {
+  display: inline-flex; align-items: center; gap: 6px;
+  background: linear-gradient(135deg, var(--man-primary), var(--man-primary-2));
+  color: #0a0a0f; font-weight: 700; font-size: 12px;
+  border: none; border-radius: var(--radius-pill);
+  padding: 5px 12px; cursor: pointer; transition: filter var(--speed) var(--ease);
+}
+.pro-chip:hover { filter: brightness(1.12); }
+.action-row {
+  display: flex; align-items: center; gap: 10px; width: 100%;
+  background: transparent; color: var(--man-text); border: 1px solid var(--man-border);
+  border-radius: var(--radius-md); padding: 10px 12px; font-size: 0.9rem;
+  cursor: pointer; text-align: left; margin-bottom: 8px;
+}
+.action-row:hover { background: var(--man-hover); border-color: var(--man-border-strong); }
+.modal-overlay {
+  position: fixed; inset: 0; z-index: 1000; display: flex;
+  align-items: center; justify-content: center; background: rgba(0,0,0,.55);
+  padding: 16px; animation: manSplashFade .2s var(--ease);
+}
+.modal {
+  width: 100%; max-width: 420px; background: var(--man-surface);
+  border: 1px solid var(--man-border-strong); border-radius: var(--radius-lg);
+  padding: 22px; box-shadow: 0 20px 50px rgba(0,0,0,.5);
+}
+.modal-title {
+  display: flex; align-items: center; gap: 8px;
+  font-size: 1.05rem; font-weight: 700; margin-bottom: 14px;
+}
+.fb-input {
+  width: 100%; background: var(--man-bg-2); color: var(--man-text);
+  border: 1px solid var(--man-border); border-radius: var(--radius-md);
+  padding: 12px; font-size: 0.9rem; margin-top: 10px; resize: vertical;
+}
+.fb-input:focus { outline: none; border-color: var(--man-primary); }

@@ -10,6 +10,7 @@ import {
   IconMemory, IconExport, IconMic, IconSend, IconSettings, IconLogout,
   IconMenu, IconX, IconEdit, IconTrash, IconCopy, IconRefresh, IconStop,
   IconGlobe, IconCheck, IconMessage, IconSparkle,
+  IconFeedback, IconStar, IconSparkles,
 } from "@/components/icons";
 
 interface Msg { role: "user" | "assistant"; text: string; provider?: string; pendingAction?: any; }
@@ -67,6 +68,11 @@ export default function Page() {
   const [toolPrompt, setToolPrompt] = useState<string | null>(null);
   const [toolLabel, setToolLabel] = useState<string | null>(null);
   const [settingsOpen, setSettingsOpen] = useState(false);
+  const [feedbackOpen, setFeedbackOpen] = useState(false);
+  const [subOpen, setSubOpen] = useState(false);
+  const [fbCategory, setFbCategory] = useState("general");
+  const [fbMessage, setFbMessage] = useState("");
+  const [fbSent, setFbSent] = useState(false);
   const [langPref, setLangPref] = useState("auto");
   const [tonePref, setTonePref] = useState("auto");
 
@@ -283,6 +289,18 @@ export default function Page() {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ id, approved }) });
     setMessages((m) => [...m, { role: "assistant", text: approved ? "✅ Approved — action saved." : "❌ Rejected — nothing saved." }]);
+  }
+  // Feedback submission (Phase 7) — post to /api/feedback.
+  async function submitFeedback() {
+    if (!fbMessage.trim()) { setLoginMsg("Write a message first."); return; }
+    try {
+      const res = await fetch("/api/feedback", { method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ category: fbCategory, message: fbMessage.trim() }) });
+      const d = await res.json();
+      if (d.ok) { setFbSent(true); setFbMessage(""); setTimeout(() => { setFbSent(false); setFeedbackOpen(false); }, 1800); }
+      else setLoginMsg(d.error || "Couldn't submit.");
+    } catch { setLoginMsg("Couldn't submit feedback."); }
   }
 
   // ============ LOGIN ============
@@ -564,6 +582,7 @@ export default function Page() {
       </div>
       <div className="sidebar-foot">
         <button className="side-item" onClick={() => { setShowMemory((s) => !s); if (!showMemory) refreshMemory(); }}><IconMemory /> Memory</button>
+        <button className="side-item" onClick={() => setFeedbackOpen(true)}><IconFeedback /> Feedback</button>
         {auth?.role === "admin" && <button className="side-item" onClick={loadAdminUsage}><IconMessage /> Usage</button>}
         <button className="side-item" onClick={logout}><IconLogout /> Log out</button>
       </div>
@@ -590,6 +609,12 @@ export default function Page() {
             </div>
           </div>
           <div className="top-actions">
+            <button className="pro-chip" onClick={() => setSubOpen(true)} title="Upgrade to Pro">
+              <IconSparkles size={14} /> Pro
+            </button>
+            <button className="icon-btn" title="Feedback" aria-label="Feedback" onClick={() => setFeedbackOpen(true)}>
+              <IconFeedback />
+            </button>
             <button className="icon-btn" title="Memory" aria-label="Memory" onClick={() => { setShowMemory((s) => !s); if (!showMemory) refreshMemory(); }}>
               <IconMemory />
             </button>
@@ -618,7 +643,63 @@ export default function Page() {
                 ))}
               </div>
             </div>
+            <div className="panel-title" style={{ marginTop: 12 }}>Account</div>
+            <div className="setting-group">
+              <button className="action-row" onClick={() => { setSettingsOpen(false); setFeedbackOpen(true); }}>
+                <IconFeedback size={16} /> <span>Send feedback</span>
+              </button>
+              <button className="action-row" onClick={() => { setSettingsOpen(false); setSubOpen(true); }}>
+                <IconSparkles size={16} /> <span>Upgrade to Pro</span>
+              </button>
+            </div>
           </aside>
+        )}
+
+        {feedbackOpen && (
+          <div className="modal-overlay" onClick={() => setFeedbackOpen(false)}>
+            <div className="modal" onClick={(e) => e.stopPropagation()}>
+              <div className="modal-title">Send feedback</div>
+              {fbSent ? (
+                <p className="auth-ok">Thanks! Your feedback was received. 🙏</p>
+              ) : (
+                <>
+                  <label className="setting-label">Type</label>
+                  <select className="cc-select" style={{ width: "100%" }} value={fbCategory} onChange={(e) => setFbCategory(e.target.value)}>
+                    <option value="bug">Bug</option>
+                    <option value="wrong_answer">Wrong answer</option>
+                    <option value="missing_capability">Missing capability</option>
+                    <option value="feature_request">Feature request</option>
+                    <option value="ux_issue">UX / UI issue</option>
+                    <option value="safety">Safety / security</option>
+                    <option value="general">General</option>
+                  </select>
+                  <textarea className="fb-input" rows={4} placeholder="Tell MAN what we can improve…" value={fbMessage} onChange={(e) => setFbMessage(e.target.value)} />
+                  {loginMsg && <div className="auth-err" role="alert">{loginMsg}</div>}
+                  <div style={{ display: "flex", gap: 8, marginTop: 12 }}>
+                    <button className="approve" onClick={submitFeedback}>Submit</button>
+                    <button className="reject" onClick={() => setFeedbackOpen(false)}>Cancel</button>
+                  </div>
+                </>
+              )}
+            </div>
+          </div>
+        )}
+
+        {subOpen && (
+          <div className="modal-overlay" onClick={() => setSubOpen(false)}>
+            <div className="modal" onClick={(e) => e.stopPropagation()}>
+              <div className="modal-title"><IconSparkles size={18} /> MAN Pro</div>
+              <p className="muted">MAN Pro unlocks higher limits and premium capabilities as they launch.</p>
+              <ul style={{ margin: "12px 0 12px 20px", fontSize: 14, lineHeight: 1.7 }}>
+                <li>More daily messages</li>
+                <li>Image &amp; video generation (coming)</li>
+                <li>Advanced tools &amp; premium models</li>
+                <li>Priority support</li>
+              </ul>
+              <div className="auth-err" role="alert">Billing is not connected yet — Pro will be available when payment is enabled.</div>
+              <button className="reject" style={{ marginTop: 8 }} onClick={() => setSubOpen(false)}>Close</button>
+            </div>
+          </div>
         )}
 
         {showMemory && (
