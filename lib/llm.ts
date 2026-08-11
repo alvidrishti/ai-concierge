@@ -1,6 +1,6 @@
 // MAN — AI Provider Router
 //
-// Priority: Groq (multi-key rotation) -> DeepSeek -> Gemini -> OpenRouter -> GitHub.
+// Priority: Groq (multi-key rotation) -> Gemini -> OpenRouter -> GitHub.
 // All keys stay server-side (Vercel env vars). Never expose to browser.
 // No fake responses: if a provider fails, we FAIL OVER or return a clear
 // error — we never fabricate a success.
@@ -33,7 +33,7 @@ const key = (k: string) => process.env[k] || "";
 const gemini: Provider = {
   name: "gemini",
   enabled: !!key("GEMINI_API_KEY"),
-  model: process.env.MAN_GEMINI_MODEL || "gemini-2.0-flash",
+  model: process.env.MAN_GEMINI_MODEL || "gemini-flash-latest",
   url: "",
   headers: {},
   body: () => ({}),
@@ -51,14 +51,15 @@ gemini.parse = (d: any) => ({
 });
 
 // ---------- Groq (OpenAI-compatible, with multi-key rotation) ----------
-// Supports GROQ_API_KEY, GROQ_API_KEY_2, GROQ_API_KEY_3 as a key pool. Each key
-// becomes its own provider entry in the chain, so if one key hits its rate/usage
-// limit (429), the router automatically falls through to the next key, then on
-// to the next provider (DeepSeek -> OpenRouter -> GitHub).
+// Supports GROQ_API_KEY, GROQ_API_KEY_2, GROQ_API_KEY_3, GROQ_API_KEY_4 as a
+// key pool. Each key becomes its own provider entry in the chain, so if one key
+// hits its rate/usage limit (429), the router automatically falls through to the
+// next key, then on to the next provider (Gemini -> OpenRouter).
 const GROQ_KEYS = [
   key("GROQ_API_KEY"),
   key("GROQ_API_KEY_2"),
   key("GROQ_API_KEY_3"),
+  key("GROQ_API_KEY_4"),
 ].filter((k) => !!k);
 
 function makeGroq(name: string, apiKey: string, model: string): Provider {
@@ -95,21 +96,6 @@ const openrouter: Provider = {
     usage: { input_tokens: d?.usage?.prompt_tokens, output_tokens: d?.usage?.completion_tokens } }),
 };
 
-// ---------- DeepSeek (OpenAI-compatible) ----------
-const deepseek: Provider = {
-  name: "deepseek",
-  enabled: !!key("DEEPSEEK_API_KEY"),
-  model: process.env.MAN_DEEPSEEK_MODEL || "deepseek-chat",
-  url: "https://api.deepseek.com/chat/completions",
-  headers: { "Content-Type": "application/json", Authorization: `Bearer ${key("DEEPSEEK_API_KEY")}` },
-  body: (prompt, sys) => ({
-    model: deepseek.model, temperature: 0.7, max_tokens: 2000,
-    messages: [{ role: "system", content: sys }, { role: "user", content: prompt }],
-  }),
-  parse: (d: any) => ({ text: d?.choices?.[0]?.message?.content || "",
-    usage: { input_tokens: d?.usage?.prompt_tokens, output_tokens: d?.usage?.completion_tokens } }),
-};
-
 // ---------- GitHub Models ----------
 const github: Provider = {
   name: "github",
@@ -123,10 +109,10 @@ const github: Provider = {
   parse: (d: any) => ({ text: d?.choices?.[0]?.message?.content || "" }),
 };
 
-// Main router priority: Groq (multi-key) -> DeepSeek -> Gemini -> OpenRouter -> GitHub.
+// Main router priority: Groq (multi-key) -> Gemini -> OpenRouter -> GitHub.
 // Groq is tried first because it is the most reliable/available provider; each
 // Groq key is its own entry so rate-limit on one falls through to the next.
-const CHAIN: Provider[] = [...groq, deepseek, gemini, openrouter, github];
+const CHAIN: Provider[] = [...groq, gemini, openrouter, github];
 export const activeProviders = CHAIN.filter((p) => p.enabled).map((p) => p.name);
 
 async function callProvider(p: Provider, prompt: string, sys: string): Promise<LLMResult> {
