@@ -28,7 +28,10 @@ export async function POST(req: Request) {
     if (!rl.allowed) {
       return NextResponse.json({ error: "Too many attempts. Please try again later." }, { status: 429 });
     }
-    const userId = "u_" + name.toLowerCase().replace(/[^a-z0-9]+/g, "_");
+    // userId is derived from name; when only email is given, resolve it after
+    // the email lookup below. Guard against undefined name (email-only login).
+    const baseName = name || "";
+    const userId = "u_" + baseName.toLowerCase().replace(/[^a-z0-9]+/g, "_");
 
     if (isAdmin) {
       const { verifyAdmin } = await import("@/lib/auth");
@@ -73,7 +76,7 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: "Please verify your account before logging in." }, { status: 403 });
     }
 
-    const displayName = user.name || name;
+    const displayName = user.name || name || user.email || "User";
     return issueSession(req, user.id, displayName, "user");
   } catch (e: any) {
     return NextResponse.json({ error: "Something went wrong" }, { status: 500 });
