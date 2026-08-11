@@ -41,13 +41,16 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: "invalid credentials" }, { status: 401 });
     }
 
-    // Find the account by name-derived id OR by email. No auto-create.
+    // Find the account by email (preferred, case-insensitive) OR by name-derived id.
+    // No auto-create. Email is the reliable identifier for users.
     let user: any = null;
-    const byId = await db.select("users", `&id=eq.${encodeURIComponent(userId)}`).catch(() => []);
-    if (byId.length) user = byId[0];
-    else if (email) {
-      const byEmail = await db.select("users", `&email=eq.${encodeURIComponent(email)}`).catch(() => []);
+    if (email) {
+      const byEmail = await db.select("users", `&email=ilike.${encodeURIComponent(email.trim())}`).catch(() => []);
       if (byEmail.length) user = byEmail[0];
+    }
+    if (!user) {
+      const byId = await db.select("users", `&id=eq.${encodeURIComponent(userId)}`).catch(() => []);
+      if (byId.length) user = byId[0];
     }
     // Generic failure regardless of whether the account exists (no enumeration).
     if (!user || !user.password_hash || user.password_hash.length < 16) {

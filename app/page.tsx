@@ -89,6 +89,7 @@ export default function Page() {
   const sendRef = useRef<(t: string) => void>(() => {});
   const abortRef = useRef<AbortController | null>(null);
   const [loginName, setLoginName] = useState("");
+  const [loginEmail, setLoginEmail] = useState("");
   const [loginPass, setLoginPass] = useState("");
 
   useEffect(() => {
@@ -245,12 +246,16 @@ export default function Page() {
   }
 
   async function login() {
-    if (!loginName.trim() || !loginPass) { setLoginMsg("Please enter a name and password."); return; }
+    // Email mode: require email (the user's email is the identifier).
+    const usingEmail = authMode === "email";
+    if (usingEmail) {
+      if (!loginEmail.trim() || !loginPass) { setLoginMsg("Please enter your email and password."); return; }
+    } else if (!loginName.trim() || !loginPass) { setLoginMsg("Please enter a name and password."); return; }
     setLoginMsg("");
     const isAdmin = loginName.trim().toLowerCase() === "admin";
     const res = await fetch("/api/auth/login", { method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ name: loginName.trim(), password: loginPass, isAdmin }) });
+      body: JSON.stringify({ name: loginName.trim(), email: usingEmail ? loginEmail.trim() : undefined, password: loginPass, isAdmin }) });
     const d = await res.json();
     if (!res.ok) { setLoginMsg(d.error || "Login failed."); return; }
     setAuth({ id: d.userId, name: d.name, role: d.role });
@@ -491,8 +496,8 @@ export default function Page() {
           {authMode === "email" && (
             <>
               <div className="auth-field">
-                <label htmlFor="login-name">Name</label>
-                <input id="login-name" value={loginName} onChange={(e)=>setLoginName(e.target.value)} placeholder="Your name" autoComplete="username" />
+                <label htmlFor="login-email">Email</label>
+                <input id="login-email" type="email" value={loginEmail} onChange={(e)=>setLoginEmail(e.target.value)} placeholder="you@example.com" autoComplete="email" />
               </div>
               <div className="auth-field">
                 <label htmlFor="login-pass">Password</label>
