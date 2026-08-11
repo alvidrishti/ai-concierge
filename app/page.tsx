@@ -271,23 +271,158 @@ export default function Page() {
   }
 
   // ============ LOGIN ============
+  const [authMode, setAuthMode] = useState<"landing"|"phone"|"email"|"forgot">("landing");
+  const [phoneInput, setPhoneInput] = useState("");
+  const [otpCode, setOtpCode] = useState("");
+  const [otpRequested, setOtpRequested] = useState(false);
+  const [authBusy, setAuthBusy] = useState(false);
+  const [forgotEmail, setForgotEmail] = useState("");
+  const [forgotSent, setForgotSent] = useState(false);
+  const [countryCode, setCountryCode] = useState("+880");
+
+  async function requestOtp() {
+    if (!phoneInput.trim()) { setLoginMsg("Enter your phone number."); return; }
+    setAuthBusy(true); setLoginMsg("");
+    const res = await fetch("/api/auth/otp", { method:"POST", headers:{ "Content-Type":"application/json" },
+      body: JSON.stringify({ action:"request", phone: phoneInput.trim(), countryCode }) });
+    const d = await res.json();
+    setAuthBusy(false);
+    if (d.status === "sent") { setOtpRequested(true); setLoginMsg(""); }
+    else setLoginMsg(d.message || "Couldn't send code. Please try again.");
+  }
+
+  async function verifyOtp() {
+    if (!otpCode.trim()) { setLoginMsg("Enter the code from your phone."); return; }
+    setAuthBusy(true); setLoginMsg("");
+    const res = await fetch("/api/auth/otp", { method:"POST", headers:{ "Content-Type":"application/json" },
+      body: JSON.stringify({ action:"verify", phone: phoneInput.trim(), countryCode, code: otpCode.trim() }) });
+    const d = await res.json();
+    setAuthBusy(false);
+    if (d.authenticated) {
+      setAuth({ id:d.userId, name:d.name, role:d.role }); setView("chat");
+      if (!localStorage.getItem("man_onboarded_"+d.userId)){ setShowOnboarding(true); setOnboardStep(0);}
+      loadThreads();
+    } else setLoginMsg(d.error || "Invalid code.");
+  }
+
+  async function submitForgot() {
+    if (!forgotEmail.trim()) { setLoginMsg("Enter your email."); return; }
+    setAuthBusy(true); setLoginMsg("");
+    const res = await fetch("/api/auth/forgot", { method:"POST", headers:{ "Content-Type":"application/json" },
+      body: JSON.stringify({ email: forgotEmail.trim() }) });
+    const d = await res.json();
+    setAuthBusy(false);
+    if (d.ok) { setForgotSent(true); setLoginMsg(""); }
+    else setLoginMsg(d.error || "Couldn't send reset email.");
+  }
+
   if (view === "login") {
     return (
       <div className="auth-wrap">
         <div className="auth-card">
           <div className="auth-logo"><ManLogo size={52} /></div>
-          <h1>Personal AI Intelligence Agent</h1>
-          <p className="auth-sub">A private intelligence companion.</p>
-          <div className="auth-field">
-            <label htmlFor="login-name">Name</label>
-            <input id="login-name" value={loginName} onChange={(e) => setLoginName(e.target.value)} placeholder="Your name" autoComplete="username" />
-          </div>
-          <div className="auth-field">
-            <label htmlFor="login-pass">Password</label>
-            <input id="login-pass" type="password" value={loginPass} onChange={(e) => setLoginPass(e.target.value)} onKeyDown={(e) => e.key === "Enter" && login()} placeholder="••••••••" autoComplete="current-password" />
-          </div>
-          {loginMsg && <div className="auth-err" role="alert">{loginMsg}</div>}
-          <button className="auth-btn" onClick={login}>Continue</button>
+          <h1>{authMode === "phone" ? "Enter your phone" : authMode === "email" ? "Email sign in" : authMode === "forgot" ? "Reset your password" : "MAN"}</h1>
+          <p className="auth-sub">
+            {authMode === "phone" ? "We'll text you a verification code." :
+             authMode === "email" ? "Sign in or create your account." :
+             authMode === "forgot" ? "Enter your email and we'll send a reset link." :
+             "Personal AI Intelligence Agent"}
+          </p>
+
+          {authMode === "landing" && (
+            <>
+              <div className="auth-field">
+                <label htmlFor="login-name">Name</label>
+                <input id="login-name" value={loginName} onChange={(e)=>setLoginName(e.target.value)} placeholder="Your name" autoComplete="username" />
+              </div>
+              <div className="auth-field">
+                <label htmlFor="login-pass">Password</label>
+                <input id="login-pass" type="password" value={loginPass} onChange={(e)=>setLoginPass(e.target.value)} onKeyDown={(e)=>e.key==="Enter"&&login()} placeholder="••••••••" autoComplete="current-password" />
+              </div>
+              {loginMsg && <div className="auth-err" role="alert">{loginMsg}</div>}
+              <button className="auth-btn" onClick={login}>Continue</button>
+
+              <div className="auth-divider"><span>or continue with</span></div>
+              <div className="social-btns">
+                <button className="social-btn" onClick={()=>{setLoginMsg("");setAuthMode("phone");}}>
+                  <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" strokeWidth="1.6"><rect x="7" y="2" width="10" height="20" rx="2"/><path d="M11 18h2"/></svg> Continue with phone
+                </button>
+                <button className="social-btn" onClick={()=>{setLoginMsg("");setAuthMode("email");}}>
+                  <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" strokeWidth="1.6"><rect x="2" y="4" width="20" height="16" rx="2"/><path d="M2 7l10 6 10-6"/></svg> Continue with email
+                </button>
+              </div>
+              <button className="link-btn" onClick={()=>{setLoginMsg("");setAuthMode("forgot");}}>Forgot password?</button>
+            </>
+          )}
+
+          {authMode === "phone" && (
+            <>
+              {!otpRequested ? (
+                <>
+                  <div className="auth-field">
+                    <label htmlFor="phone-input">Phone number</label>
+                    <div className="phone-row">
+                      <select value={countryCode} onChange={(e)=>setCountryCode(e.target.value)} className="cc-select" aria-label="Country code">
+                        <option value="+880">🇧🇩 +880</option><option value="+91">+91</option><option value="+44">+44</option><option value="+1">+1</option>
+                      </select>
+                      <input id="phone-input" value={phoneInput} onChange={(e)=>setPhoneInput(e.target.value)} placeholder="1XXXXXXXXX" inputMode="tel" />
+                    </div>
+                  </div>
+                  {loginMsg && <div className="auth-err" role="alert">{loginMsg}</div>}
+                  <button className="auth-btn" onClick={requestOtp} disabled={authBusy}>{authBusy ? "Sending…" : "Send code"}</button>
+                  <button className="link-btn" onClick={()=>{setLoginMsg("");setAuthMode("landing");}}>Back</button>
+                </>
+              ) : (
+                <>
+                  <div className="auth-field">
+                    <label htmlFor="otp-input">Verification code</label>
+                    <input id="otp-input" value={otpCode} onChange={(e)=>setOtpCode(e.target.value)} placeholder="6-digit code" inputMode="numeric" />
+                  </div>
+                  {loginMsg && <div className="auth-err" role="alert">{loginMsg}</div>}
+                  <button className="auth-btn" onClick={verifyOtp} disabled={authBusy}>{authBusy ? "Verifying…" : "Verify & continue"}</button>
+                  <button className="link-btn" onClick={()=>{setLoginMsg("");setOtpRequested(false);}}>Change number</button>
+                </>
+              )}
+            </>
+          )}
+
+          {authMode === "email" && (
+            <>
+              <div className="auth-field">
+                <label htmlFor="login-name">Name</label>
+                <input id="login-name" value={loginName} onChange={(e)=>setLoginName(e.target.value)} placeholder="Your name" autoComplete="username" />
+              </div>
+              <div className="auth-field">
+                <label htmlFor="login-pass">Password</label>
+                <input id="login-pass" type="password" value={loginPass} onChange={(e)=>setLoginPass(e.target.value)} onKeyDown={(e)=>e.key==="Enter"&&login()} placeholder="••••••••" autoComplete="current-password" />
+              </div>
+              {loginMsg && <div className="auth-err" role="alert">{loginMsg}</div>}
+              <button className="auth-btn" onClick={login}>Continue</button>
+              <button className="link-btn" onClick={()=>{setLoginMsg("");setAuthMode("landing");}}>Back</button>
+            </>
+          )}
+
+          {authMode === "forgot" && (
+            <>
+              {!forgotSent ? (
+                <>
+                  <div className="auth-field">
+                    <label htmlFor="forgot-email">Email</label>
+                    <input id="forgot-email" type="email" value={forgotEmail} onChange={(e)=>setForgotEmail(e.target.value)} placeholder="you@example.com" />
+                  </div>
+                  {loginMsg && <div className="auth-err" role="alert">{loginMsg}</div>}
+                  <button className="auth-btn" onClick={submitForgot} disabled={authBusy}>{authBusy ? "Sending…" : "Send reset link"}</button>
+                  <button className="link-btn" onClick={()=>{setLoginMsg("");setAuthMode("landing");}}>Back</button>
+                </>
+              ) : (
+                <>
+                  <div className="auth-ok">Reset link sent. Check your inbox.</div>
+                  <button className="link-btn" onClick={()=>{setLoginMsg("");setForgotSent(false);setAuthMode("landing");}}>Back to login</button>
+                </>
+              )}
+            </>
+          )}
+
           <p className="auth-footer">Created by MD RAYHAN MIA</p>
         </div>
       </div>
