@@ -87,6 +87,13 @@ export default function Page() {
   const [capsOpen, setCapsOpen] = useState(false);
   const [caps, setCaps] = useState<any[]>([]);
   const [stats, setStats] = useState<any>(null);
+  const [finOpen, setFinOpen] = useState(false);
+  const [finRecords, setFinRecords] = useState<any[]>([]);
+  const [finSummary, setFinSummary] = useState<any>(null);
+  const [finType, setFinType] = useState<"income" | "expense">("expense");
+  const [finCat, setFinCat] = useState("food");
+  const [finAmount, setFinAmount] = useState("");
+  const [finNote, setFinNote] = useState("");
   const [langPref, setLangPref] = useState("auto");
   const [tonePref, setTonePref] = useState("auto");
 
@@ -345,6 +352,34 @@ export default function Page() {
       if (d.capabilities) { setCaps(d.capabilities); setCapsOpen(true); }
     } catch {}
   }
+  // Freelancer/SME finance companion (BD 2027).
+  async function loadFinance() {
+    try {
+      const res = await fetch("/api/finance");
+      const d = await res.json();
+      if (d.records) { setFinRecords(d.records); setFinSummary(d.summary); setFinOpen(true); }
+    } catch {}
+  }
+  async function addFinance() {
+    const amt = parseFloat(finAmount);
+    if (!isFinite(amt) || amt <= 0) { setLoginMsg("Enter a valid amount."); return; }
+    try {
+      const res = await fetch("/api/finance", { method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ type: finType, category: finCat, amount: amt, note: finNote.trim() || undefined }) });
+      const d = await res.json();
+      if (d.ok) { setFinRecords(d.records); setFinSummary(d.summary); setFinAmount(""); setFinNote(""); setLoginMsg(""); }
+      else setLoginMsg(d.error || "Couldn't add.");
+    } catch { setLoginMsg("Couldn't add record."); }
+  }
+  async function deleteFinance(id: string) {
+    const res = await fetch(`/api/finance?id=${encodeURIComponent(id)}`, { method: "DELETE" });
+    const d = await res.json();
+    if (d.ok) { setFinRecords((r) => r.filter((x) => x.id !== id)); setFinSummary(d.summary); }
+  }
+  const FIN_CATS: Record<string, string[]> = {
+    income: ["freelance_income", "salary", "grant", "other_income"],
+    expense: ["tools", "internet", "electricity", "transport", "food", "rent", "marketing", "education", "medical", "family", "other_expense"],
+  };
 
   // ============ LOGIN ============
   const [authMode, setAuthMode] = useState<"landing"|"phone"|"email"|"forgot"|"signup">("landing");
@@ -688,6 +723,9 @@ export default function Page() {
             </div>
             <div className="panel-title" style={{ marginTop: 12 }}>Account</div>
             <div className="setting-group">
+              <button className="action-row" onClick={() => { setSettingsOpen(false); loadFinance(); }}>
+                <IconCalculator size={16} /> <span>Freelancer finance</span>
+              </button>
               <button className="action-row" onClick={() => { setSettingsOpen(false); loadCapabilities(); }}>
                 <IconGlobe size={16} /> <span>What MAN can do</span>
               </button>
@@ -741,11 +779,19 @@ export default function Page() {
               <p className="muted">MAN Pro unlocks higher limits and premium capabilities as they launch.</p>
               <ul style={{ margin: "12px 0 12px 20px", fontSize: 14, lineHeight: 1.7 }}>
                 <li>More daily messages</li>
+                <li>Freelancer finance &amp; daily-life tools (included in Free)</li>
                 <li>Image &amp; video generation (coming)</li>
                 <li>Advanced tools &amp; premium models</li>
                 <li>Priority support</li>
               </ul>
-              <div className="auth-err" role="alert">Billing is not connected yet — Pro will be available when payment is enabled.</div>
+              <div className="pro-price">৳149 / month <span className="pro-price-note">(est.) — bKash / Nagad / card</span></div>
+              <div className="pay-methods">
+                <button className="pay-method" onClick={() => setLoginMsg("bKash payment requires merchant account setup — coming soon.")}>bKash</button>
+                <button className="pay-method" onClick={() => setLoginMsg("Nagad payment requires merchant account setup — coming soon.")}>Nagad</button>
+                <button className="pay-method" onClick={() => setLoginMsg("Card payment (Stripe) requires merchant setup — coming soon.")}>Card</button>
+              </div>
+              {loginMsg && <div className="auth-err" role="alert">{loginMsg}</div>}
+              <div className="auth-err" role="alert">Live billing needs a payment provider (bKash/Nagad merchant or Stripe) — not yet connected.</div>
               <button className="reject" style={{ marginTop: 8 }} onClick={() => setSubOpen(false)}>Close</button>
             </div>
           </div>
@@ -786,6 +832,51 @@ export default function Page() {
                 ))}
               </div>
               <button className="reject" style={{ marginTop: 12 }} onClick={() => setCapsOpen(false)}>Close</button>
+            </div>
+          </div>
+        )}
+
+        {finOpen && (
+          <div className="modal-overlay" onClick={() => setFinOpen(false)}>
+            <div className="modal fin-modal" onClick={(e) => e.stopPropagation()}>
+              <div className="modal-title"><IconCalculator size={18} /> Freelancer finance</div>
+              {/* Summary */}
+              <div className="home-stats">
+                <div className="stat-card"><div className="stat-num">৳{finSummary?.income ?? 0}</div><div className="stat-label">Income</div></div>
+                <div className="stat-card"><div className="stat-num">৳{finSummary?.expense ?? 0}</div><div className="stat-label">Expense</div></div>
+                <div className="stat-card"><div className="stat-num" style={{ color: (finSummary?.balance ?? 0) < 0 ? "var(--man-danger)" : "var(--man-success)" }}>৳{finSummary?.balance ?? 0}</div><div className="stat-label">Balance</div></div>
+              </div>
+              {/* Add form */}
+              <div className="fin-form">
+                <div className="seg" style={{ marginBottom: 8 }}>
+                  {[["expense", "Expense"], ["income", "Income"]].map(([v, l]) => (
+                    <button key={v} className={finType === v ? "seg-on" : ""} onClick={() => { setFinType(v as any); setFinCat(v === "income" ? "freelance_income" : "food"); }}>{l}</button>
+                  ))}
+                </div>
+                <div style={{ display: "flex", gap: 8 }}>
+                  <select className="cc-select" style={{ flex: 1 }} value={finCat} onChange={(e) => setFinCat(e.target.value)}>
+                    {(FIN_CATS[finType] || []).map((c) => <option key={c} value={c}>{c.replace(/_/g, " ")}</option>)}
+                  </select>
+                  <input className="fb-input" style={{ width: 100, marginTop: 0 }} placeholder="৳ amount" inputMode="decimal" value={finAmount} onChange={(e) => setFinAmount(e.target.value)} />
+                </div>
+                <input className="fb-input" style={{ marginTop: 8 }} placeholder="Note (optional)" value={finNote} onChange={(e) => setFinNote(e.target.value)} />
+                {loginMsg && <div className="auth-err" role="alert">{loginMsg}</div>}
+                <button className="approve" style={{ marginTop: 8, width: "100%" }} onClick={addFinance}>Add {finType}</button>
+              </div>
+              {/* Records */}
+              <div className="fin-records">
+                {finRecords.length === 0 && <p className="muted">No records yet. Add your first income or expense.</p>}
+                {finRecords.slice(0, 30).map((r) => (
+                  <div key={r.id} className="fin-row">
+                    <span className={`fin-type ${r.type}`}>{r.type === "income" ? "↑" : "↓"}</span>
+                    <span className="fin-cat">{r.category.replace(/_/g, " ")}</span>
+                    <span className="fin-note">{r.note}</span>
+                    <span className={`fin-amt ${r.type}`}>{r.type === "income" ? "+" : "-"}৳{r.amount}</span>
+                    <button className="mini" onClick={() => deleteFinance(r.id)}><IconTrash size={13} /></button>
+                  </div>
+                ))}
+              </div>
+              <button className="reject" style={{ marginTop: 12, width: "100%" }} onClick={() => setFinOpen(false)}>Close</button>
             </div>
           </div>
         )}

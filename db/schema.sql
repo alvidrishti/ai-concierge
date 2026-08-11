@@ -266,3 +266,18 @@ drop policy if exists "service role all" on public.feedback;
 create policy "service role all" on public.feedback for all using (true) with check (true);
 create index if not exists idx_feedback_user on public.feedback(user_id);
 create index if not exists idx_feedback_status on public.feedback(status);
+
+-- ============ FINANCES (Freelancer/SME companion, BD 2027) ============
+create table if not exists public.finances (
+  id text primary key,
+  user_id text not null,
+  type text not null,              -- 'income' | 'expense'
+  category text not null,
+  amount numeric not null,         -- in BDT
+  note text,
+  created_at timestamptz default now()
+);
+alter table public.finances enable row level security;
+drop policy if exists "service role all" on public.finances;
+create policy "service role all" on public.finances for all using (true) with check (true);
+create index if not exists idx_finances_user on public.finances(user_id, created_at);

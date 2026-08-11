@@ -424,3 +424,24 @@ button { font-family: inherit; color: inherit; }
   font-size: 0.68rem; color: var(--man-text-dim); text-transform: uppercase; letter-spacing: .04em;
 }
 .provider-dot { width: 7px; height: 7px; border-radius: 50%; background: var(--man-success); display: inline-block; }
+
+/* ===== BD 2027: Finance companion + Pro payment UI ===== */
+.fin-modal { max-width: 460px; max-height: 90vh; overflow-y: auto; }
+.fin-form { background: var(--man-bg-2); border: 1px solid var(--man-border); border-radius: var(--radius-md); padding: 12px; margin: 10px 0; }
+.fin-records { max-height: 220px; overflow-y: auto; margin-top: 6px; }
+.fin-row { display: flex; align-items: center; gap: 10px; padding: 7px 0; border-bottom: 1px solid var(--man-border); font-size: 0.84rem; }
+.fin-type { font-weight: 800; }
+.fin-type.income { color: var(--man-success); }
+.fin-type.expense { color: var(--man-danger); }
+.fin-cat { flex: 0 0 auto; text-transform: capitalize; }
+.fin-note { flex: 1; color: var(--man-text-dim); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 0.78rem; }
+.fin-amt { font-weight: 700; white-space: nowrap; }
+.fin-amt.income { color: var(--man-success); }
+.fin-amt.expense { color: var(--man-danger); }
+.pro-price { font-size: 1.2rem; font-weight: 800; color: var(--man-primary); margin: 8px 0 2px; }
+.pro-price-note { font-size: 0.75rem; color: var(--man-text-dim); font-weight: 500; }
+.pay-methods { display: flex; gap: 8px; margin: 10px 0; }
+.pay-method { flex: 1; padding: 10px 6px; text-align: center; font-weight: 700; font-size: 0.85rem;
+  background: var(--man-surface-2); color: var(--man-text); border: 1px solid var(--man-border);
+  border-radius: var(--radius-md); cursor: pointer; transition: all var(--speed) var(--ease); }
+.pay-method:hover { border-color: var(--man-primary); background: var(--man-hover); }

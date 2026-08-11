@@ -175,6 +175,24 @@ async function main() {
   check("capability demand sorted by requests", insight.length === 2 && insight[0].requests === 2);
   check("image generation stays future_pro in roadmap", insight.find((i) => i.capId === "image_generation")?.status === "future_pro");
 
+  // ---------------- BD 2027: Finance companion + daily-life ---------------- (in-memory)
+  console.log("\n[BD 2027] Finance companion + daily-life assistant");
+  const fin = await import("../lib/finance");
+  const f1r = await fin.addFinance("u_freelancer", { type: "income", category: "freelance_income", amount: 5000, note: "Upwork" });
+  await fin.addFinance("u_freelancer", { type: "expense", category: "internet", amount: 1200 });
+  const recs = await fin.listFinance("u_freelancer");
+  check("finance records created", recs.length === 2, `got ${recs.length}`);
+  check("rejects zero/negative amount", (await fin.addFinance("u_freelancer", { type: "expense", category: "food", amount: 0 })) === null);
+  const sum = fin.financeSummary(recs);
+  check("income = 5000", sum.income === 5000, `got ${sum.income}`);
+  check("expense = 1200", sum.expense === 1200, `got ${sum.expense}`);
+  check("balance = 3800", sum.balance === 3800, `got ${sum.balance}`);
+  const iso = await fin.listFinance("u_other");
+  check("finance user isolation", iso.length === 0);
+  const bdLife = await import("../lib/bd_life");
+  const trans = bdLife.retrieveBDHelp("how do I travel by bus in Dhaka?");
+  check("daily-life transport help present", trans.toLowerCase().includes("bus"));
+
   console.log(`\n${pass} passed, ${fail} failed`);
   process.exit(fail ? 1 : 0);
 }

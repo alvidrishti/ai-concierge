@@ -23,6 +23,7 @@ import { retrieveBDContext, BD_UNCERTAINTY } from "./bangladesh";
 import { districtDnaBlock } from "./district_dna";
 import { professionDnaBlock } from "./profession_dna";
 import { lifeStageBlock } from "./life_stage_dna";
+import { retrieveBDHelp } from "./bd_life";
 import { assessKnowledge, uncertaintyDirective, detectMissingReality } from "./uncertainty";
 
 export interface ContextBundle {
@@ -37,6 +38,7 @@ export interface ContextBundle {
 export function buildTurnContext(query: string): {
   personal: string;
   bangladesh: string;
+  dailyLife: string;
   districtDna: string;
   professionDna: string;
   lifeStage: string;
@@ -46,27 +48,29 @@ export function buildTurnContext(query: string): {
   const personal = personalFactsBlock(query);
   const hasPersonal = personal.length > 0;
   const bangladesh = retrieveBDContext(query);
+  const dailyLife = retrieveBDHelp(query);
   const districtDna = districtDnaBlock(query);
   const professionDna = professionDnaBlock(query);
   const lifeStage = lifeStageBlock(query);
   const assessment = assessKnowledge(query, {
     hasPersonal,
-    hasContext: bangladesh.length > 0 || districtDna.length > 0 || professionDna.length > 0,
+    hasContext: bangladesh.length > 0 || dailyLife.length > 0 || districtDna.length > 0 || professionDna.length > 0,
   });
   const uncertainty = uncertaintyDirective(assessment);
-  return { personal, bangladesh, districtDna, professionDna, lifeStage, uncertainty, hasPersonal };
+  return { personal, bangladesh, dailyLife, districtDna, professionDna, lifeStage, uncertainty, hasPersonal };
 }
 
 // Full assembled system extension (used by lib/agent.ts for general turns).
 export function assembleContext(query: string): ContextBundle {
-  const { personal, bangladesh, districtDna, professionDna, lifeStage, uncertainty, hasPersonal } = buildTurnContext(query);
+  const { personal, bangladesh, dailyLife, districtDna, professionDna, lifeStage, uncertainty, hasPersonal } = buildTurnContext(query);
   let system = uncertainty;
   if (personal) system += `\n${personal}`;
+  if (dailyLife) system += `\n${dailyLife}`;
   if (districtDna) system += `\n${districtDna}`;
   if (professionDna) system += `\n${professionDna}`;
   if (lifeStage) system += `\n${lifeStage}`;
   if (bangladesh) system += `\n${bangladesh}${BD_UNCERTAINTY}`;
-  const confidence = hasPersonal ? "high" : (bangladesh || districtDna || professionDna) ? "medium" : "low";
+  const confidence = hasPersonal ? "high" : (bangladesh || dailyLife || districtDna || professionDna) ? "medium" : "low";
   return { system, confidence, hasPersonal };
 }
 
