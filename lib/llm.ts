@@ -1,11 +1,12 @@
 // MAN — AI Provider Router
 //
-// Priority: Gemini -> Groq -> OpenRouter -> GitHub Models -> friendly error.
+// Priority: Gemini -> Groq -> DeepSeek -> OpenRouter -> GitHub Models -> friendly error.
 // All keys stay server-side (Vercel env vars). Never expose to browser.
 // No fake responses: if a provider fails, we FAIL OVER or return a clear
 // error — we never fabricate a success.
 //
-// Env vars: GEMINI_API_KEY, GROQ_API_KEY, OPENROUTER_API_KEY, GITHUB_TOKEN
+// Env vars: GEMINI_API_KEY, GROQ_API_KEY, DEEPSEEK_API_KEY,
+//           OPENROUTER_API_KEY, GITHUB_TOKEN
 
 export interface LLMResult {
   text: string;
@@ -80,6 +81,21 @@ const openrouter: Provider = {
     usage: { input_tokens: d?.usage?.prompt_tokens, output_tokens: d?.usage?.completion_tokens } }),
 };
 
+// ---------- DeepSeek (OpenAI-compatible) ----------
+const deepseek: Provider = {
+  name: "deepseek",
+  enabled: !!key("DEEPSEEK_API_KEY"),
+  model: process.env.MAN_DEEPSEEK_MODEL || "deepseek-chat",
+  url: "https://api.deepseek.com/chat/completions",
+  headers: { "Content-Type": "application/json", Authorization: `Bearer ${key("DEEPSEEK_API_KEY")}` },
+  body: (prompt, sys) => ({
+    model: deepseek.model, temperature: 0.7, max_tokens: 2000,
+    messages: [{ role: "system", content: sys }, { role: "user", content: prompt }],
+  }),
+  parse: (d: any) => ({ text: d?.choices?.[0]?.message?.content || "",
+    usage: { input_tokens: d?.usage?.prompt_tokens, output_tokens: d?.usage?.completion_tokens } }),
+};
+
 // ---------- GitHub Models ----------
 const github: Provider = {
   name: "github",
@@ -93,7 +109,7 @@ const github: Provider = {
   parse: (d: any) => ({ text: d?.choices?.[0]?.message?.content || "" }),
 };
 
-const CHAIN: Provider[] = [gemini, groq, openrouter, github];
+const CHAIN: Provider[] = [gemini, groq, deepseek, openrouter, github];
 export const activeProviders = CHAIN.filter((p) => p.enabled).map((p) => p.name);
 
 async function callProvider(p: Provider, prompt: string, sys: string): Promise<LLMResult> {
