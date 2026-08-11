@@ -50,21 +50,35 @@ gemini.parse = (d: any) => ({
   text: d?.candidates?.[0]?.content?.parts?.map((p: any) => p.text).join("") || "",
 });
 
-// ---------- Groq (OpenAI-compatible) ----------
-const groq: Provider = {
-  name: "groq",
-  enabled: !!key("GROQ_API_KEY"),
-  model: process.env.MAN_GROQ_MODEL || "llama-3.3-70b-versatile",
-  url: "https://api.groq.com/openai/v1/chat/completions",
-  headers: { "Content-Type": "application/json", Authorization: `Bearer ${key("GROQ_API_KEY")}` },
-  body: (prompt, sys) => ({
-    model: groq.model,
-    temperature: 0.7,
-    messages: [{ role: "system", content: sys }, { role: "user", content: prompt }],
-  }),
-  parse: (d: any) => ({ text: d?.choices?.[0]?.message?.content || "",
-    usage: { input_tokens: d?.usage?.prompt_tokens, output_tokens: d?.usage?.completion_tokens } }),
-};
+// ---------- Groq (OpenAI-compatible, with multi-key rotation) ----------
+// Supports GROQ_API_KEY, GROQ_API_KEY_2, GROQ_API_KEY_3 as a key pool. Each key
+// becomes its own provider entry in the chain, so if one key hits its rate/usage
+// limit (429), the router automatically falls through to the next key, then on
+// to the next provider (DeepSeek -> OpenRouter -> GitHub).
+const GROQ_KEYS = [
+  key("GROQ_API_KEY"),
+  key("GROQ_API_KEY_2"),
+  key("GROQ_API_KEY_3"),
+].filter((k) => !!k);
+
+function makeGroq(name: string, apiKey: string, model: string): Provider {
+  return {
+    name,
+    enabled: !!apiKey,
+    model,
+    url: "https://api.groq.com/openai/v1/chat/completions",
+    headers: { "Content-Type": "application/json", Authorization: `Bearer ${apiKey}` },
+    body: (prompt, sys) => ({
+      model,
+      temperature: 0.7,
+      messages: [{ role: "system", content: sys }, { role: "user", content: prompt }],
+    }),
+    parse: (d: any) => ({ text: d?.choices?.[0]?.message?.content || "",
+      usage: { input_tokens: d?.usage?.prompt_tokens, output_tokens: d?.usage?.completion_tokens } }),
+  };
+}
+const groqModel = process.env.MAN_GROQ_MODEL || "llama-3.3-70b-versatile";
+const groq = GROQ_KEYS.map((k, i) => makeGroq(i === 0 ? "groq" : `groq${i + 1}`, k, groqModel));
 
 // ---------- OpenRouter ----------
 const openrouter: Provider = {
@@ -109,7 +123,7 @@ const github: Provider = {
   parse: (d: any) => ({ text: d?.choices?.[0]?.message?.content || "" }),
 };
 
-const CHAIN: Provider[] = [gemini, groq, deepseek, openrouter, github];
+const CHAIN: Provider[] = [gemini, ...groq, deepseek, openrouter, github];
 export const activeProviders = CHAIN.filter((p) => p.enabled).map((p) => p.name);
 
 async function callProvider(p: Provider, prompt: string, sys: string): Promise<LLMResult> {
