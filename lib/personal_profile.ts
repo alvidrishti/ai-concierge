@@ -46,8 +46,16 @@ const PROFILE: PersonalFact[] = [
 
 export function retrievePersonal(query: string): string {
   const q = query.toLowerCase();
-  const hits = PROFILE.filter((f) =>
-    f.keywords.some((k) => q.includes(k.toLowerCase())));
+  // If the query asks about the creator / personal info broadly, return all
+  // approved facts so MAN never wrongly says "I don't know" (e.g. the location
+  // fact keywords don't contain "কোথায়", so a question like "রায়হান ভাই কোথায়?"
+  // wouldn't otherwise retrieve it).
+  const aboutCreator = /(rayhan|mia|md rayhan|creator|রায়হান|মিয়া|কে বানিয়েছে|কে বানালো|who made)/.test(q);
+  const intent = /\b(where|who|what|tell me about|about|know|live|location|born|village|work|job|project|skill)\b/.test(q) ||
+    /(কোথায়|কোথা|কে|কি|বলো|বল|জানো|থাকেন|জন্ম|গ্রাম|কাজ|প্রজেক্ট)/.test(q);
+  const hits = aboutCreator && intent
+    ? PROFILE
+    : PROFILE.filter((f) => f.keywords.some((k) => q.includes(k.toLowerCase())));
   if (!hits.length) return "";
   return hits.map((f) => `[${f.category}] ${f.content}`).join("\n");
 }

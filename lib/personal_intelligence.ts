@@ -65,6 +65,17 @@ export function allPersonalFacts(): PersonalFact[] {
 // Retrieve ONLY authoritative (approved/verified) facts relevant to a query.
 export function retrievePersonalFacts(query: string): PersonalFact[] {
   const q = query.toLowerCase();
+  // If the query clearly asks about the creator / personal info, return ALL
+  // approved facts so MAN has full context (avoids "I don't know" when the
+  // user asks e.g. "রায়হান ভাই কোথায়?" which the location fact keywords
+  // don't literally contain).
+  const aboutCreator = /(rayhan|mia|md rayhan|creator|রায়হান|মিয়া|creator k|who made|কে বানিয়েছে|কে বানালো|জান)/.test(q);
+  const personalInfoIntent = /\b(where|who|what|tell me about|about|know|live|location|born|village|work|job|project|skill)\b/.test(q) ||
+    /(কোথায়|কোথা|কে|কি|বলো|বল|জানো|থাকেন|জন্ম|গ্রাম|কাজ|প্রজেক্ট)/.test(q);
+  if (aboutCreator && personalInfoIntent) {
+    return allPersonalFacts().filter((f) => f.approved);
+  }
+  // Otherwise fall back to keyword matching.
   return allPersonalFacts().filter(
     (f) => f.approved && f.keywords.some((k) => q.includes(k.toLowerCase()))
   );

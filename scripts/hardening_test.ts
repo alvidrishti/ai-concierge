@@ -61,6 +61,10 @@ async function main() {
   check("unrelated query returns no facts (no invented data)", none.length === 0);
   const onlyApproved = pi.retrievePersonalFacts("where does Rayhan live?");
   check("only approved facts are authoritative", onlyApproved.every((f) => f.approved));
+  // Bangla personal question ("রায়হান ভাই কোথায়?") must retrieve location fact
+  // (fix: broad creator-intent retrieval so MAN doesn't say "I don't know").
+  const bangla = pi.retrievePersonalFacts("রায়হান ভাই কোথায়?");
+  check("Bangla creator question retrieves location fact", bangla.some((f) => f.fact.toLowerCase().includes("rangpur")));
 
   // ---------------- Phase 10: Bangladesh context ----------------
   console.log("\n[Phase 10] Bangladesh context intelligence");
