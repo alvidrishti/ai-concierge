@@ -34,6 +34,15 @@ const WELCOME_CARDS = [
   { id: "remember", label: "Remember", desc: "Save something for later", icon: IconMemory, prompt: "remember that I like " },
 ];
 
+// Daypart-aware greeting (Bangla + English).
+function greeting(): string {
+  const h = new Date().getHours();
+  const bn = h < 5 ? "শুভ রাত্রি" : h < 12 ? "শুভ সকাল" : h < 16 ? "শুভ দুপুর" : h < 19 ? "শুভ সন্ধ্যা" : "শুভ রাত্রি";
+  const en = h < 5 ? "Good night" : h < 12 ? "Good morning" : h < 16 ? "Good afternoon" : h < 19 ? "Good evening" : "Good night";
+  const name = typeof window !== "undefined" ? (document.querySelector(".brand-name")?.textContent || "there") : "there";
+  return `${bn} / ${en}, ${name}!`;
+}
+
 function relativeTime(iso?: string): string {
   if (!iso) return "";
   const d = new Date(iso);
@@ -77,6 +86,7 @@ export default function Page() {
   const [sessions, setSessions] = useState<any[]>([]);
   const [capsOpen, setCapsOpen] = useState(false);
   const [caps, setCaps] = useState<any[]>([]);
+  const [stats, setStats] = useState<any>(null);
   const [langPref, setLangPref] = useState("auto");
   const [tonePref, setTonePref] = useState("auto");
 
@@ -134,6 +144,7 @@ export default function Page() {
           setAuth({ id: d.user.id, name: d.user.name, role: d.user.role });
           setView("chat");
           setMemories(d.memory || []);
+          setStats(d.stats || null);
           if (!localStorage.getItem("man_onboarded_" + d.user.id)) setShowOnboarding(true);
         }
       } catch { /* offline */ }
@@ -821,10 +832,32 @@ export default function Page() {
 
         <div className="chat" ref={chatRef}>
           {messages.length === 0 ? (
-            <div className="welcome">
+            <div className="welcome home-dash">
               <div className="welcome-logo"><ManLogo size={48} /></div>
-              <h2>How can I help?</h2>
+              <h2>{greeting()}</h2>
               <p className="lead">Ask anything, explore an idea, or get something done.</p>
+
+              {/* Quick action pills */}
+              <div className="home-quick">
+                {WELCOME_CARDS.map((c) => {
+                  const I = c.icon;
+                  return (
+                    <button key={c.id} className="home-quick-btn" onClick={() => send(c.prompt)}>
+                      <I size={16} />
+                      <span>{c.label}</span>
+                    </button>
+                  );
+                })}
+              </div>
+
+              {/* Stats row (real, from /api/me) */}
+              <div className="home-stats">
+                <div className="stat-card"><div className="stat-num">{stats?.messagesToday ?? 0}</div><div className="stat-label">Messages today</div></div>
+                <div className="stat-card"><div className="stat-num">{stats?.threadsCount ?? 0}</div><div className="stat-label">Conversations</div></div>
+                <div className="stat-card"><div className="stat-num">{stats?.memoryCount ?? 0}</div><div className="stat-label">Memories</div></div>
+              </div>
+
+              {/* Welcome suggestion cards */}
               <div className="welcome-cards">
                 {WELCOME_CARDS.map((c) => {
                   const I = c.icon;
@@ -846,6 +879,11 @@ export default function Page() {
                 {m.role === "assistant" && (<div className="man-avatar"><ManMark size={24} /></div>)}
                 <div className="msg-body">
                   <div className="bubble" dangerouslySetInnerHTML={{ __html: renderMarkdown(m.text) }} />
+                  {m.role === "assistant" && m.provider && m.provider !== "none" && (
+                    <div className="provider-badge" title="Answered by">
+                      <span className="provider-dot"></span> {m.provider}
+                    </div>
+                  )}
                   {m.pendingAction && (
                     <div className="approval" role="group" aria-label="Approval required">
                       <div className="approval-title">Approval required</div>

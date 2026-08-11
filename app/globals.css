@@ -401,3 +401,26 @@ button { font-family: inherit; color: inherit; }
 .cap-status.future_pro { color: #ffd166; background: #ffd16622; border: 1px solid #ffd16644; }
 .cap-status.not_supported { color: var(--man-danger); background: #ff6b6b1f; border: 1px solid #ff6b6b44; }
 .cap-status.coming, .cap-status.degraded { color: var(--man-text-muted); background: #ffffff14; }
+
+/* ===== MAN V5 Home Dashboard + Provider badge ===== */
+.home-dash { display: flex; flex-direction: column; align-items: center; }
+.home-quick { display: flex; flex-wrap: wrap; gap: 10px; justify-content: center; margin: 6px 0 4px; }
+.home-quick-btn {
+  display: inline-flex; align-items: center; gap: 7px;
+  background: var(--man-surface-2); color: var(--man-text);
+  border: 1px solid var(--man-border); border-radius: var(--radius-pill);
+  padding: 8px 14px; font-size: 0.85rem; cursor: pointer; transition: all var(--speed) var(--ease);
+}
+.home-quick-btn:hover { background: var(--man-hover); border-color: var(--man-primary); transform: translateY(-1px); }
+.home-stats { display: flex; gap: 12px; margin: 16px 0; flex-wrap: wrap; justify-content: center; }
+.stat-card {
+  min-width: 110px; padding: 14px 16px; text-align: center;
+  background: var(--man-surface); border: 1px solid var(--man-border); border-radius: var(--radius-lg);
+}
+.stat-num { font-size: 1.7rem; font-weight: 800; background: var(--man-grad); -webkit-background-clip: text; background-clip: text; color: transparent; }
+.stat-label { font-size: 0.72rem; color: var(--man-text-dim); text-transform: uppercase; letter-spacing: .04em; margin-top: 3px; }
+.provider-badge {
+  display: inline-flex; align-items: center; gap: 6px; margin-top: 8px;
+  font-size: 0.68rem; color: var(--man-text-dim); text-transform: uppercase; letter-spacing: .04em;
+}
+.provider-dot { width: 7px; height: 7px; border-radius: 50%; background: var(--man-success); display: inline-block; }
