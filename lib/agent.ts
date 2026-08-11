@@ -186,7 +186,7 @@ function memoryCommand(low: string):
   // Bangla: "mone rakho", "mone rakhe nio", "মনে রাখ"
   if (/remember|মনে রাখ|মনে রেখ/.test(low)) {
     if (/মনে রাখ|মনে রেখ/.test(low)) {
-      const bn = low.match(/(?:মনে রাখ|মনে রেখ)(?: যে)?\s+(.+)/);
+      const bn = low.match(/মনে (?:রাখ|রেখ|রাখো|রেখো)(?: যে)?\s+(.+)/);
       if (bn && bn[1].trim().length > 0) {
         return { type: "remember", key: "preference", value: bn[1].trim() };
       }
@@ -218,11 +218,16 @@ export async function respond(rawMessage: string, userId: string, isAdmin = fals
   const low = msg.toLowerCase();
 
   const userMemory = await memory.getMemory(userId);
-  const history = await memory.getConversation(userId, threadId, 6);
 
-  // persist the user's message (to the given thread, or a fresh one if none)
+  // Resolve the thread FIRST, then load history scoped to exactly that thread.
+  // Never load history before we know the target thread, and never retrieve a
+  // whole user's conversations (thread leak). New chat = fresh thread = empty history.
   const targetThread = threadId || (await ensureThread(userId)).id;
+  const history = await memory.getConversation(userId, targetThread, 6);
   await memory.saveConversation(userId, targetThread, "user", msg);
+
+  // ---- Auto title: set a short title after the first meaningful message ----
+  await autoTitle(userId, targetThread, msg, history.length);
 
   // ---- Real-time date/time direct answers (provider-independent) ----
   const now = new Date();
@@ -393,11 +398,40 @@ export async function respond(rawMessage: string, userId: string, isAdmin = fals
   return { role: "assistant", text: result.text, provider: result.provider, memoryUsed: true };
 }
 
+// Auto-generate a short (2-6 word) title from the first meaningful user
+// message. Only runs when the thread has no prior messages (history.length === 0)
+// and the thread title is still the default "New chat".
+async function autoTitle(userId: string, threadId: string, msg: string, priorCount: number): Promise<void> {
+  if (priorCount > 0) return; // not the first message
+  const threads = await memory.listThreads(userId);
+  const t = threads.find((x) => x.id === threadId);
+  if (!t) return;
+  if (t.title && t.title !== "New chat" && t.title !== "New Chat") return; // user renamed
+
+  const title = makeTitle(msg);
+  if (title) await memory.renameThread(userId, threadId, title);
+}
+
+function makeTitle(msg: string): string | null {
+  const t = msg.trim();
+  if (!t || t.length < 3) return null;
+  // Strip common leading phrases, then take first few meaningful words.
+  let clean = t
+    .replace(/^(tell me about|talk about|let'?s talk about|talk to me about|i want to know about|explain|what about|can you tell me about|আমি|আমার|তুমি|আমাকে|নিয়ে|সম্পর্কে)\s*/i, "")
+    .replace(/[?!.।]+$/, "")
+    .trim();
+  // keep first 2-6 words
+  const words = clean.split(/\s+/).slice(0, 6);
+  if (words.length < 1) return null;
+  let title = words.join(" ");
+  if (title.length > 40) title = title.slice(0, 40).trim();
+  if (!title) return null;
+  return title.charAt(0).toUpperCase() + title.slice(1);
+}
+
 async function ensureThread(userId: string) {
-  const existing = await memory.listThreads(userId);
-  if (existing.length) {
-    // reuse the most recent thread
-    return existing[0];
-  }
+  // ALWAYS create a fresh thread when no threadId is provided. Never reuse the
+  // most recent thread — that would leak the previous conversation's context
+  // into a "New Chat". (Thread isolation: each chat is its own thread.)
   return memory.createThread(userId);
 }

@@ -119,13 +119,14 @@ class Memory {
 
   // ================= CONVERSATION (thread-scoped) =================
   async getConversation(userId: string, threadId?: string, limit = 12): Promise<ChatMessage[]> {
+    // Thread isolation: ALWAYS require a threadId. Without one, return empty —
+    // never fall back to "the user's most recent thread" or all conversations.
+    if (!threadId) return [];
     if (dbEnabled()) {
-      const f = threadId ? `&thread_id=eq.${threadId}` : "";
-      const rows = await db.select("conversations", `&user_id=eq.${encodeURIComponent(userId)}${f}&order=created_at.desc&limit=${limit}`);
+      const rows = await db.select("conversations", `&user_id=eq.${encodeURIComponent(userId)}&thread_id=eq.${threadId}&order=created_at.desc&limit=${limit}`);
       return rows.reverse().map((r: any) => ({ role: r.role, content: r.content }));
     }
-    const tId = threadId || this.threads.get(userId)?.keys().next().value as string | undefined;
-    return (tId ? (this.conv.get(userId)?.get(tId) || []) : []).slice(-limit);
+    return (this.conv.get(userId)?.get(threadId) || []).slice(-limit);
   }
 
   async saveConversation(userId: string, threadId: string, role: "user" | "assistant", content: string, provider?: string): Promise<void> {

@@ -13,8 +13,9 @@ const QUICK = [
   "Who made you?",
   "What can you do?",
   "Tell me about MD Rayhan Mia",
-  "Remember that I prefer Bangla",
-  "What do you remember about me?",
+  "what is the weather in Dhaka?",
+  "search the web for latest AI news",
+  "Set a reminder for tomorrow",
 ];
 
 // ---- inline icons ----
@@ -50,6 +51,7 @@ export default function Page() {
   const [copied, setCopied] = useState<number | null>(null);
   const [showOnboarding, setShowOnboarding] = useState(false);
   const [onboardStep, setOnboardStep] = useState(0);
+  const [toolsOpen, setToolsOpen] = useState(false);
 
   // conversations (Phase 1)
   const [threads, setThreads] = useState<Thread[]>([]);
@@ -484,6 +486,23 @@ export default function Page() {
 
       <div className="composer">
         <div className="composer-tools">
+          <div className="tools-wrap">
+            <button className="new-chat-inline" onClick={() => setToolsOpen((s) => !s)} title="Tools" aria-label="Open tools">
+              <PlusIcon /> Tools
+            </button>
+            {toolsOpen && (
+              <div className="tools-popover" role="menu">
+                <div className="tools-popover-title">What MAN can do</div>
+                <button role="menuitem" onClick={() => { setToolsOpen(false); send("search the web for "); }}>🔎 Web Search</button>
+                <button role="menuitem" onClick={() => { setToolsOpen(false); send("what is the weather in Dhaka?"); }}>🌤 Weather</button>
+                <button role="menuitem" onClick={() => { setToolsOpen(false); send("find 3 coffee shops near Dhanmondi"); }}>📍 Places</button>
+                <button role="menuitem" onClick={() => { setToolsOpen(false); send("what is 12 * 8?"); }}>🧮 Calculator</button>
+                <button role="menuitem" onClick={() => { setToolsOpen(false); send("remind me about my appointment tomorrow"); }}>⏰ Reminder</button>
+                <button role="menuitem" onClick={() => { setToolsOpen(false); setShowMemory(true); refreshMemory(); }}>🧠 Memory</button>
+                <button role="menuitem" onClick={() => { setToolsOpen(false); exportChat(); }}>📤 Export</button>
+              </div>
+            )}
+          </div>
           <button className="new-chat-inline" onClick={newChat} title="Start a new conversation" aria-label="New conversation">
             <PlusIcon /> New Chat
           </button>
