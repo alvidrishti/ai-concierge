@@ -271,7 +271,7 @@ export default function Page() {
   }
 
   // ============ LOGIN ============
-  const [authMode, setAuthMode] = useState<"landing"|"phone"|"email"|"forgot">("landing");
+  const [authMode, setAuthMode] = useState<"landing"|"phone"|"email"|"forgot"|"signup">("landing");
   const [phoneInput, setPhoneInput] = useState("");
   const [otpCode, setOtpCode] = useState("");
   const [otpRequested, setOtpRequested] = useState(false);
@@ -279,6 +279,30 @@ export default function Page() {
   const [forgotEmail, setForgotEmail] = useState("");
   const [forgotSent, setForgotSent] = useState(false);
   const [countryCode, setCountryCode] = useState("+880");
+  // signup fields
+  const [signupName, setSignupName] = useState("");
+  const [signupEmail, setSignupEmail] = useState("");
+  const [signupPhone, setSignupPhone] = useState("");
+  const [signupPass, setSignupPass] = useState("");
+  const [signupConfirm, setSignupConfirm] = useState("");
+
+  async function doSignup() {
+    if (!signupName.trim()) { setLoginMsg("Enter your name."); return; }
+    if (!signupPass) { setLoginMsg("Enter a password."); return; }
+    if (signupPass.length < 6) { setLoginMsg("Password must be at least 6 characters."); return; }
+    if (signupPass !== signupConfirm) { setLoginMsg("Passwords do not match."); return; }
+    if (!signupEmail.trim() && !signupPhone.trim()) { setLoginMsg("Enter an email or phone."); return; }
+    setAuthBusy(true); setLoginMsg("");
+    const res = await fetch("/api/auth/signup", { method:"POST", headers:{ "Content-Type":"application/json" },
+      body: JSON.stringify({ name: signupName.trim(), email: signupEmail.trim() || undefined, phone: signupPhone.trim() || undefined, password: signupPass }) });
+    const d = await res.json();
+    setAuthBusy(false);
+    if (d.ok) {
+      setAuth({ id:d.userId, name:d.name, role:d.role }); setView("chat");
+      if (!localStorage.getItem("man_onboarded_"+d.userId)){ setShowOnboarding(true); setOnboardStep(0);}
+      loadThreads();
+    } else setLoginMsg(d.error || "Couldn't create account.");
+  }
 
   async function requestOtp() {
     if (!phoneInput.trim()) { setLoginMsg("Enter your phone number."); return; }
@@ -321,11 +345,12 @@ export default function Page() {
       <div className="auth-wrap">
         <div className="auth-card">
           <div className="auth-logo"><ManLogo size={52} /></div>
-          <h1>{authMode === "phone" ? "Enter your phone" : authMode === "email" ? "Email sign in" : authMode === "forgot" ? "Reset your password" : "MAN"}</h1>
+          <h1>{authMode === "phone" ? "Enter your phone" : authMode === "email" ? "Email sign in" : authMode === "forgot" ? "Reset your password" : authMode === "signup" ? "Create your account" : "MAN"}</h1>
           <p className="auth-sub">
             {authMode === "phone" ? "We'll text you a verification code." :
-             authMode === "email" ? "Sign in or create your account." :
+             authMode === "email" ? "Sign in with your email account." :
              authMode === "forgot" ? "Enter your email and we'll send a reset link." :
+             authMode === "signup" ? "Create a new MAN account." :
              "Personal AI Intelligence Agent"}
           </p>
 
@@ -352,6 +377,7 @@ export default function Page() {
                 </button>
               </div>
               <button className="link-btn" onClick={()=>{setLoginMsg("");setAuthMode("forgot");}}>Forgot password?</button>
+              <button className="link-btn" onClick={()=>{setLoginMsg("");setAuthMode("signup");}}>Create account</button>
             </>
           )}
 
@@ -420,6 +446,34 @@ export default function Page() {
                   <button className="link-btn" onClick={()=>{setLoginMsg("");setForgotSent(false);setAuthMode("landing");}}>Back to login</button>
                 </>
               )}
+            </>
+          )}
+
+          {authMode === "signup" && (
+            <>
+              <div className="auth-field">
+                <label htmlFor="signup-name">Name</label>
+                <input id="signup-name" value={signupName} onChange={(e)=>setSignupName(e.target.value)} placeholder="Your full name" autoComplete="name" />
+              </div>
+              <div className="auth-field">
+                <label htmlFor="signup-email">Email <span className="optional">(optional)</span></label>
+                <input id="signup-email" type="email" value={signupEmail} onChange={(e)=>setSignupEmail(e.target.value)} placeholder="you@example.com" autoComplete="email" />
+              </div>
+              <div className="auth-field">
+                <label htmlFor="signup-phone">Phone <span className="optional">(optional)</span></label>
+                <input id="signup-phone" value={signupPhone} onChange={(e)=>setSignupPhone(e.target.value)} placeholder="01XXXXXXXXX" inputMode="tel" autoComplete="tel" />
+              </div>
+              <div className="auth-field">
+                <label htmlFor="signup-pass">Password</label>
+                <input id="signup-pass" type="password" value={signupPass} onChange={(e)=>setSignupPass(e.target.value)} placeholder="At least 6 characters" autoComplete="new-password" />
+              </div>
+              <div className="auth-field">
+                <label htmlFor="signup-confirm">Confirm password</label>
+                <input id="signup-confirm" type="password" value={signupConfirm} onChange={(e)=>setSignupConfirm(e.target.value)} onKeyDown={(e)=>e.key==="Enter"&&doSignup()} placeholder="Re-enter password" autoComplete="new-password" />
+              </div>
+              {loginMsg && <div className="auth-err" role="alert">{loginMsg}</div>}
+              <button className="auth-btn" onClick={doSignup} disabled={authBusy}>{authBusy ? "Creating…" : "Create account"}</button>
+              <button className="link-btn" onClick={()=>{setLoginMsg("");setAuthMode("landing");}}>Back</button>
             </>
           )}
 
