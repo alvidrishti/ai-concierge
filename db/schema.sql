@@ -6,7 +6,8 @@ create table if not exists public.users (
   id text primary key,
   name text,
   email text,
-  role text default 'user',           -- 'user' | 'admin'
+  phone text,                          -- phone for OTP auth
+  role text default 'user',            -- 'user' | 'admin'
   password_hash text,
   created_at timestamptz default now()
 );
@@ -92,13 +93,21 @@ create table if not exists public.subscriptions (
 alter table public.subscriptions enable row level security;
 
 -- ---- Policies: service role (app backend) has full access ----
+drop policy if exists "service role all" on public.users;
 create policy "service role all" on public.users for all using (true) with check (true);
+drop policy if exists "service role all" on public.user_memory;
 create policy "service role all" on public.user_memory for all using (true) with check (true);
+drop policy if exists "service role all" on public.conversation_threads;
 create policy "service role all" on public.conversation_threads for all using (true) with check (true);
+drop policy if exists "service role all" on public.conversations;
 create policy "service role all" on public.conversations for all using (true) with check (true);
+drop policy if exists "service role all" on public.reminders;
 create policy "service role all" on public.reminders for all using (true) with check (true);
+drop policy if exists "service role all" on public.pending_actions;
 create policy "service role all" on public.pending_actions for all using (true) with check (true);
+drop policy if exists "service role all" on public.usage_log;
 create policy "service role all" on public.usage_log for all using (true) with check (true);
+drop policy if exists "service role all" on public.subscriptions;
 create policy "service role all" on public.subscriptions for all using (true) with check (true);
 
 -- ---- Performance indexes (non-destructive) ----
@@ -109,3 +118,91 @@ create index if not exists idx_reminders_user on public.reminders(user_id);
 create index if not exists idx_pending_actions_user on public.pending_actions(user_id, state);
 create index if not exists idx_usage_log_user on public.usage_log(user_id);
 create index if not exists idx_usage_log_time on public.usage_log(created_at);
+
+-- ============ ACCOUNT RECOVERY / VERIFICATION ============
+
+-- Password reset tokens (one-time, hashed, expiring)
+create table if not exists public.password_reset_tokens (
+  id uuid primary key default gen_random_uuid(),
+  user_id text not null,
+  token_hash text not null,          -- hashed token, never stored plaintext
+  expires_at timestamptz not null,
+  used boolean default false,
+  created_at timestamptz default now()
+);
+alter table public.password_reset_tokens enable row level security;
+
+-- Verification codes (email/phone OTP)
+create table if not exists public.verification_codes (
+  id uuid primary key default gen_random_uuid(),
+  user_id text not null,
+  kind text not null,                -- 'email' | 'phone' | 'password_reset'
+  code_hash text not null,           -- hashed code
+  expires_at timestamptz not null,
+  attempts int default 0,
+  used boolean default false,
+  created_at timestamptz default now()
+);
+alter table public.verification_codes enable row level security;
+
+-- ============ ATTACHMENTS ============
+-- User-scoped + thread-scoped file/image uploads. Ownership enforced via
+-- user_id (and optionally thread_id). Metadata stored; binary in secure storage.
+create table if not exists public.attachments (
+  id uuid primary key default gen_random_uuid(),
+  user_id text not null,
+  thread_id uuid references public.conversation_threads(id) on delete set null,
+  filename text not null,
+  mime_type text not null,
+  size_bytes int not null,
+  storage_key text not null,         -- secure storage key, never public URL
+  content_type text not null,        -- 'image' | 'document' | 'text' | 'other'
+  created_at timestamptz default now()
+);
+alter table public.attachments enable row level security;
+
+-- ============ ENTITLEMENTS (FREE vs PRO) ============
+-- Plan and feature flags, independent of any billing provider.
+create table if not exists public.entitlements (
+  user_id text primary key,
+  plan text default 'free',          -- 'free' | 'pro'
+  can_voice boolean default false,
+  can_image boolean default false,
+  can_file boolean default false,
+  can_advanced_model boolean default false,
+  can_advanced_memory boolean default false,
+  text_daily_limit int default 100,
+  updated_at timestamptz default now()
+);
+alter table public.entitlements enable row level security;
+
+-- ---- policies ----
+drop policy if exists "service role all" on public.password_reset_tokens;
+create policy "service role all" on public.password_reset_tokens for all using (true) with check (true);
+drop policy if exists "service role all" on public.verification_codes;
+create policy "service role all" on public.verification_codes for all using (true) with check (true);
+drop policy if exists "service role all" on public.attachments;
+create policy "service role all" on public.attachments for all using (true) with check (true);
+drop policy if exists "service role all" on public.entitlements;
+create policy "service role all" on public.entitlements for all using (true) with check (true);
+
+-- indexes
+create index if not exists idx_password_reset_user on public.password_reset_tokens(user_id);
+create index if not exists idx_verification_user on public.verification_codes(user_id);
+create index if not exists idx_attachments_user on public.attachments(user_id);
+create index if not exists idx_attachments_thread on public.attachments(thread_id);
+
+-- ============ SESSIONS (revocation) ============
+-- Server-side session records keyed by jti. Enables logout revocation and
+-- logout-all-sessions. Requires Supabase (production persistence).
+create table if not exists public.sessions (
+  jti text primary key,               -- session identifier inside the token
+  user_id text not null,
+  created_at timestamptz default now(),
+  revoked boolean default false,
+  revoked_at timestamptz
+);
+alter table public.sessions enable row level security;
+drop policy if exists "service role all" on public.sessions;
+create policy "service role all" on public.sessions for all using (true) with check (true);
+create index if not exists idx_sessions_user on public.sessions(user_id);

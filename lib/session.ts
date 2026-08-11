@@ -9,7 +9,7 @@ export async function getSession(): Promise<Session | null> {
   const store = await cookies();
   const token = store.get(TOKEN_COOKIE)?.value;
   if (!token) return null;
-  return verifyToken(token);
+  return verifyToken(token); // async now (revocation check)
 }
 
 export function cookieName(): string {

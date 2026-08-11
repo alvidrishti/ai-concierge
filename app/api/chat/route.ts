@@ -32,22 +32,26 @@ export async function POST(req: Request) {
     }
     consume(session.userId, "text");
 
-    // Ensure a thread exists (use provided one if valid, else the user's most
-    // recent thread or a new one). Never trust a cross-user threadId: agent
-    // queries are scoped by userId internally.
+    // Ensure a thread exists. If no valid threadId is provided, create a fresh
+    // thread so the returned threadId is real and the frontend can keep adding
+    // messages to the SAME thread (one sidebar item per thread).
     let activeThread = threadId;
     if (activeThread) {
       const threads = await memory.listThreads(session.userId);
       const owns = threads.some((t) => t.id === activeThread);
       if (!owns) activeThread = undefined; // not yours -> fall back
     }
+    if (!activeThread) {
+      const t = await memory.createThread(session.userId);
+      activeThread = t.id;
+    }
 
     const turn = await respond(message, session.userId, session.role === "admin", activeThread);
     await logUsage(session.userId, "text", turn.provider, undefined,
       turn.provider === "none" ? "no provider" : undefined);
 
-    // Return the threadId so the UI can group messages.
-    return NextResponse.json({ ...turn, threadId: activeThread || "new" });
+    // Return the real threadId so the UI groups all messages into one thread.
+    return NextResponse.json({ ...turn, threadId: activeThread });
   } catch (e: any) {
     return NextResponse.json({ error: "Something went wrong. Please try again." }, { status: 500 });
   }

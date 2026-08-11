@@ -110,9 +110,9 @@ async function authFailClosedTests() {
   // R4: missing AUTH_SECRET -> signToken throws, verifyToken null
   const missSecret = spawnCase("missing AUTH_SECRET", { AUTH_SECRET: "" },
     `import { signToken, verifyToken } from "./lib/auth"; ` +
-    `try { signToken({userId:"u",name:"x",role:"user"}); console.log("SIGNED"); } ` +
-    `catch(e){ console.log("SIGN_FAIL:"+e.message); } ` +
-    `console.log("VERIFY:"+(verifyToken("abc.def")===null?"null":"VALID"));`);
+    `(async()=>{ ` +
+    `try { await signToken({userId:"u",name:"x",role:"user"}); console.log("SIGNED"); } catch(e){ console.log("SIGN_FAIL:"+e.message); } ` +
+    `console.log("VERIFY:"+((await verifyToken("abc.def"))===null?"null":"VALID")); } )();`);
   check("missing AUTH_SECRET -> signToken fails closed",
     /SIGN_FAIL/.test(missSecret.out), missSecret.out);
   check("missing AUTH_SECRET -> verifyToken returns null",
@@ -133,8 +133,8 @@ async function authFailClosedTests() {
   // R4: placeholder AUTH_SECRET -> fail closed
   const placeholderSecret = spawnCase("placeholder AUTH_SECRET", { AUTH_SECRET: "change_this_to_a_long_random_string" },
     `import { signToken } from "./lib/auth"; ` +
-    `try { signToken({userId:"u",name:"x",role:"user"}); console.log("SIGNED"); } ` +
-    `catch(e){ console.log("SIGN_FAIL"); }`);
+    `(async()=>{ ` +
+    `try { await signToken({userId:"u",name:"x",role:"user"}); console.log("SIGNED"); } catch(e){ console.log("SIGN_FAIL:"+e.message); } } )();`);
   check("placeholder AUTH_SECRET -> signToken fails closed",
     /SIGN_FAIL/.test(placeholderSecret.out), placeholderSecret.out);
 

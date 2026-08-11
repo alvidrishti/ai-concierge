@@ -33,6 +33,15 @@ const PROFILE: PersonalFact[] = [
   { id: "location", category: "Bangladesh roots",
     keywords: ["rangpur", "mithapukur", "balarhat", "daulatpur", "রংপুর", "মিঠাপুকুর"],
     content: "MD Rayhan Mia currently lives in Rangpur, Bangladesh. His village is Daulatpur, Word No. 3, Balarhat Union, Mithapukur Upazila." },
+  { id: "skills", category: "Skills & tools",
+    keywords: ["skill", "tools", "photoshop", "illustrator", "canva", "capcut", "premiere", "design", "ডিজাইন", "দক্ষতা", "কি জান"],
+    content: "MD Rayhan Mia's skills and tools include: Photoshop, Illustrator, Canva, CapCut, Premiere Pro, and a range of AI tools. He works across design and visual-intelligence work." },
+  { id: "projects", category: "Projects",
+    keywords: ["project", "projects", "built", "made", "work", "প্রজেক্ট", "বানিয়েছে", "কাজ"],
+    content: "Projects MD Rayhan Mia has worked on include: MAN (this personal AI agent), the MAA (Master AI Architect) ecosystem, Tether, GEO-related work, and other AI/design systems he builds. He gradually releases more from his personal collection." },
+  { id: "role", category: "Role",
+    keywords: ["role", "what does", "what do", "profession", "job title", "কী করেন", "পেশা"],
+    content: "MD Rayhan Mia works as a visual intelligence architect and AI-assisted designer, building AI systems and creative tools." },
 ];
 
 export function retrievePersonal(query: string): string {

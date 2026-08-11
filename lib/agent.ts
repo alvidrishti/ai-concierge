@@ -27,6 +27,7 @@ export interface Turn {
   tool?: string;
   pendingAction?: PendingAction | null;
   memoryUsed?: boolean;
+  threadId?: string;   // the actual thread this turn belongs to (critical for sidebar)
 }
 
 const IDENTITY = `You are MAN, a Personal AI Intelligence Agent.

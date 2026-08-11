@@ -37,7 +37,7 @@ export async function GET(req: Request, ctx: { params: { provider: string } }) {
   }
 
   // Sign a real session token (R4 fail-closed applies — throws if no AUTH_SECRET).
-  const token = signToken({ userId, name: profile.name, role: "user" });
+  const token = await signToken({ userId, name: profile.name, role: "user" });
   const store = await cookies();
   store.set(cookieName(), token, {
     httpOnly: true,

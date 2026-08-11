@@ -1,16 +1,24 @@
-// MAN — Authentication & user isolation (fail-closed).
+// MAN — Authentication & user isolation (fail-closed) + session revocation.
 //
 // R3: ADMIN_PASS has NO default fallback. If missing, admin auth fails.
-//     Placeholder values like "changeme" / "change_this" are rejected.
 // R4: AUTH_SECRET has NO default. If missing/empty, we refuse to sign or
-//     verify any token (fail closed) — never sign with an empty/default secret.
+//     verify any token (fail closed).
+//
+// SESSION REVOCATION:
+//  - Each token carries a `jti` (session id).
+//  - A server-side `sessions` record (Supabase) stores active sessions.
+//  - verifyToken additionally checks the session record is NOT revoked.
+//  - logout revokes the session record -> stolen token becomes invalid.
+//  - logout-all revokes all of a user's sessions.
+// Production persistence requires Supabase (sessions table); without it we
+// still sign/verify (stateless) but revocation is best-effort.
 
-import { createHmac, timingSafeEqual } from "crypto";
+import { createHmac, timingSafeEqual, randomBytes } from "crypto";
+import { db, dbEnabled } from "./db";
 
 const SECRET = process.env.AUTH_SECRET || "";
 const ADMIN_PASS = process.env.ADMIN_PASS || "";
 
-// Placeholder/predictable values that must never be accepted as real secrets.
 const INSECURE = new Set(["", "changeme", "change_this", "change_this_to_a_long_random_string", "password", "secret"]);
 
 export interface Session {
@@ -18,25 +26,33 @@ export interface Session {
   name: string;
   role: "user" | "admin";
   exp: number;
+  jti: string;   // session id — enables revocation
 }
 
 export function authReady(): boolean {
   return !!SECRET && !INSECURE.has(SECRET);
 }
 
-export function signToken(payload: { userId: string; name: string; role: "user" | "admin" }): string {
-  // R4: fail closed — refuse to sign with missing/insecure secret.
-  if (!authReady()) {
-    throw new Error("AUTH_SECRET not configured; cannot issue session");
+function newJti(): string {
+  return randomBytes(16).toString("hex");
+}
+
+export async function signToken(payload: { userId: string; name: string; role: "user" | "admin" }): Promise<string> {
+  // R4: fail closed.
+  if (!authReady()) throw new Error("AUTH_SECRET not configured; cannot issue session");
+  const jti = newJti();
+  // record the session (production: Supabase; else best-effort in-memory)
+  if (dbEnabled()) {
+    await db.insert("sessions", { jti, user_id: payload.userId, revoked: false }).catch(() => {});
   }
-  const body = Buffer.from(JSON.stringify({ ...payload, exp: Date.now() + 7 * 86400000 }))
+  const body = Buffer.from(JSON.stringify({ ...payload, jti, exp: Date.now() + 7 * 86400000 }))
     .toString("base64url");
   const sig = createHmac("sha256", SECRET).update(body).digest("base64url");
   return `${body}.${sig}`;
 }
 
-export function verifyToken(token: string): Session | null {
-  // R4: fail closed — do not verify with missing/insecure secret.
+export async function verifyToken(token: string): Promise<Session | null> {
+  // R4: fail closed.
   if (!authReady()) return null;
   try {
     const [body, sig] = token.split(".");
@@ -45,14 +61,34 @@ export function verifyToken(token: string): Session | null {
     if (!timingSafeEqual(Buffer.from(sig), Buffer.from(expected))) return null;
     const data = JSON.parse(Buffer.from(body, "base64url").toString());
     if (data.exp < Date.now()) return null;
-    return { userId: data.userId, name: data.name, role: data.role, exp: data.exp };
+    const sess: Session = { userId: data.userId, name: data.name, role: data.role, exp: data.exp, jti: data.jti };
+    // revocation check — fail closed if the session record is revoked.
+    if (dbEnabled()) {
+      const rows = await db.select("sessions", `&jti=eq.${data.jti}`).catch(() => []);
+      if (!rows.length || rows[0].revoked) return null; // not found or revoked -> invalid
+    }
+    return sess;
   } catch {
     return null;
   }
 }
 
+// Revoke a single session (logout). After this, the stolen token is invalid.
+export async function revokeSession(jti: string): Promise<void> {
+  if (dbEnabled()) {
+    await db.update("sessions", `jti=eq.${jti}`, { revoked: true, revoked_at: new Date().toISOString() }).catch(() => {});
+  }
+}
+
+// Revoke ALL sessions for a user (logout-all-sessions).
+export async function revokeAllSessions(userId: string): Promise<void> {
+  if (dbEnabled()) {
+    await db.update("sessions", `user_id=eq.${encodeURIComponent(userId)}`, { revoked: true, revoked_at: new Date().toISOString() }).catch(() => {});
+  }
+}
+
 export function hashPassword(pw: string): string {
-  // R4: hashPassword requires a real secret.
+  // R4: requires a real secret.
   if (!authReady()) throw new Error("AUTH_SECRET not configured");
   return createHmac("sha256", SECRET).update(pw).digest("hex");
 }
