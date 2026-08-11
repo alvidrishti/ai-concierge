@@ -1,10 +1,10 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { Suspense, useEffect, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import ManLogo from "@/components/ManLogo";
 
-export default function ResetPage() {
+function ResetForm() {
   const searchParams = useSearchParams();
   const token = searchParams.get("token") || "";
   const [pass, setPass] = useState("");
@@ -62,5 +62,13 @@ export default function ResetPage() {
         )}
       </div>
     </div>
+  );
+}
+
+export default function ResetPage() {
+  return (
+    <Suspense fallback={<div className="auth-wrap"><div className="auth-card">Loading…</div></div>}>
+      <ResetForm />
+    </Suspense>
   );
 }
