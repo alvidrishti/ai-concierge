@@ -9,9 +9,20 @@ create table if not exists public.users (
   phone text,                          -- phone for OTP auth
   role text default 'user',            -- 'user' | 'admin'
   password_hash text,
+  status text default 'pending',       -- 'pending' | 'active' | 'disabled'  (Phase 1 account lifecycle)
+  email_verified_at timestamptz,       -- set when email verification token consumed
+  phone_verified_at timestamptz,       -- set when phone OTP verified
   created_at timestamptz default now()
 );
+-- Phase 1: add lifecycle columns idempotently (in case table already exists)
+alter table public.users add column if not exists status text default 'pending';
+alter table public.users add column if not exists email_verified_at timestamptz;
+alter table public.users add column if not exists phone_verified_at timestamptz;
 alter table public.users enable row level security;
+-- Grandfather legacy accounts (created before the verification columns): their
+-- status is NULL, so set them to 'active' so they are NOT locked out. New
+-- accounts are created explicitly as 'pending' and are unaffected by this.
+update public.users set status = 'active' where status is null;
 
 -- Per-user long-term memory (key/value, scoped to user)
 create table if not exists public.user_memory (
@@ -192,7 +203,7 @@ create index if not exists idx_verification_user on public.verification_codes(us
 create index if not exists idx_attachments_user on public.attachments(user_id);
 create index if not exists idx_attachments_thread on public.attachments(thread_id);
 
--- ============ SESSIONS (revocation) ============
+-- ============ SESSIONS (revocation + device metadata) ============
 -- Server-side session records keyed by jti. Enables logout revocation and
 -- logout-all-sessions. Requires Supabase (production persistence).
 create table if not exists public.sessions (
@@ -200,9 +211,58 @@ create table if not exists public.sessions (
   user_id text not null,
   created_at timestamptz default now(),
   revoked boolean default false,
-  revoked_at timestamptz
+  revoked_at timestamptz,
+  last_seen_at timestamptz,           -- Phase 1 device/session security
+  device text,                        -- privacy-safe device label
+  ip text,                            -- privacy-safe IP metadata
+  user_agent text                     -- truncated UA
 );
+alter table public.sessions add column if not exists last_seen_at timestamptz;
+alter table public.sessions add column if not exists device text;
+alter table public.sessions add column if not exists ip text;
+alter table public.sessions add column if not exists user_agent text;
 alter table public.sessions enable row level security;
 drop policy if exists "service role all" on public.sessions;
 create policy "service role all" on public.sessions for all using (true) with check (true);
 create index if not exists idx_sessions_user on public.sessions(user_id);
+
+-- ============ VERIFICATION TOKENS (Phase 1 email/phone verification) ============
+-- One-time, hashed, expiring, attempt-limited verification tokens.
+create table if not exists public.verification_tokens (
+  id uuid primary key default gen_random_uuid(),
+  user_id text not null,
+  kind text not null,                -- 'email' | 'phone'
+  token_hash text not null,          -- hashed token, never plaintext
+  expires_at timestamptz not null,
+  attempts int default 0,
+  used boolean default false,
+  created_at timestamptz default now()
+);
+alter table public.verification_tokens enable row level security;
+drop policy if exists "service role all" on public.verification_tokens;
+create policy "service role all" on public.verification_tokens for all using (true) with check (true);
+create index if not exists idx_verification_tokens_user on public.verification_tokens(user_id, kind, used);
+
+-- ============ FEEDBACK (Phase 7 / Phase 8) ============
+create table if not exists public.feedback (
+  id text primary key,
+  user_id text not null,
+  category text not null,            -- bug | wrong_answer | missing_capability | feature_request | ux_issue | safety | general
+  message text not null,
+  rating int,
+  conversation_id text,
+  thread_id text,
+  message_id text,
+  capability text,
+  status text default 'open',        -- open | in_review | resolved | rejected
+  priority text default 'normal',    -- low | normal | high | critical
+  admin_notes text,
+  resolution text,
+  resolved_at timestamptz,
+  created_at timestamptz default now()
+);
+alter table public.feedback enable row level security;
+drop policy if exists "service role all" on public.feedback;
+create policy "service role all" on public.feedback for all using (true) with check (true);
+create index if not exists idx_feedback_user on public.feedback(user_id);
+create index if not exists idx_feedback_status on public.feedback(status);

@@ -19,6 +19,11 @@ import { createPendingAction, PendingAction } from "./approval";
 import { dbEnabled } from "./db";
 import { analyzeEmotion, emotionDirective } from "./emotion";
 import { retrievePersonal } from "./personal_profile";
+import { classifyCapabilityRequest } from "./capabilities";
+import { assembleContext, assessMissingReality } from "./intelligence";
+import { uncertaintyGuard } from "./uncertainty";
+import { analyzeFutureGap, GAP_DISCLAIMER } from "./missing_future";
+import { scoreSourcedClaim, TRUTH_DISCLAIMER } from "./truth";
 
 export interface Turn {
   role: "assistant";
@@ -124,13 +129,15 @@ function personalContext(query: string): string {
   return `\nPERSONAL FACTS ABOUT THE CREATOR MD RAYHAN MIA (answer naturally, warmly, using these as true facts — this is the user asking about MAN's creator):\n${p}`;
 }
 
-function isToolIntent(msg: string): "reminder" | "find" | "weather" | "calc" | "web" | null {
+function isToolIntent(msg: string): "reminder" | "find" | "weather" | "calc" | "web" | "gap" | null {
   const low = msg.toLowerCase();
   if (/remind|reminder|appointment|schedule|book/.test(low)) return "reminder";
   if (/find|compare|options|near|suggest|recommend/.test(low)) return "find";
   if (/weather|আবহাওয়া|কেমন আবহাওয়া|temperature|কত ডিগ্রি/.test(low)) return "weather";
   if (/(\d+\s*[+\-*\/^x]\s*\d+|\b(plus|minus|times|divided by|add|subtract|multiply)\b)/.test(low)) return "calc";
   if (/\b(search|look up|google|what is .*\?|who is)\b/.test(low) && /(search|look up|google)/.test(low)) return "web";
+  // ALVI DRISHTI V23: missing-future / opportunity / gap analysis
+  if (/\b(opportunit|what am i missing|gap|missing future|miss out|what should i do next|hidden potential|am i on track|what can i improve)\b/.test(low)) return "gap";
   return null;
 }
 
@@ -295,6 +302,14 @@ export async function respond(rawMessage: string, userId: string, isAdmin = fals
     }
   }
 
+  // ---- Capability honesty (Phase 3): never claim to do what MAN cannot ----
+  const unsupported = classifyCapabilityRequest(msg);
+  if (unsupported) {
+    const text = unsupported.honestResponse;
+    await memory.saveConversation(userId, targetThread, "assistant", text);
+    return { role: "assistant", text, memoryUsed: true };
+  }
+
   // ---- Human-in-the-loop escalation for tools with missing info ----
   const tool = isToolIntent(msg);
 
@@ -345,7 +360,13 @@ export async function respond(rawMessage: string, userId: string, isAdmin = fals
         const r = await (await fetch(`https://html.duckduckgo.com/html/?q=${encodeURIComponent(q)}`, { headers: { "User-Agent": "Mozilla/5.0" } })).text();
         const link = r.match(/result__a[^>]*>(.*?)<\/a>/);
         const text = link ? link[1].replace(/<[^>]+>/g, "") : null;
-        const res = text ? `Here's what I found for "${q}": **${text}**. (From live web search.)` : `I couldn't find results for "${q}".`;
+        let res = text ? `Here's what I found for "${q}": **${text}**. (From live web search.)` : `I couldn't find results for "${q}".`;
+        if (text) {
+          // ALVI DRISHTI V23: attach an evidence-quality score (honest, not a
+          // truth certificate) from a single independent live source.
+          const score = scoreSourcedClaim(text, "DuckDuckGo web search", true, 0.9);
+          res += `\n\nEvidence-quality: **${score.classification}** (${score.sovereigntyScore}/100). ${TRUTH_DISCLAIMER}`;
+        }
         await memory.saveConversation(userId, targetThread, "assistant", res);
         return { role: "assistant", text: res, tool: "web_search", memoryUsed: true };
       } catch {
@@ -369,6 +390,29 @@ export async function respond(rawMessage: string, userId: string, isAdmin = fals
     return { role: "assistant", text, pendingAction: pending, tool: "reminder", memoryUsed: true };
   }
 
+  // ---- ALVI DRISHTI V23: Missing Future / gap analysis (honest gap measure) ----
+  if (tool === "gap") {
+    // Infer a lightweight present/reference state from the message when the
+    // user hasn't provided structured attributes. This is a gap MEASURE, never
+    // a prediction (GAP_DISCLAIMER attached).
+    const subject = msg.trim().slice(0, 80);
+    const known = ["has_goal", "has_effort", "has_income"];
+    const expected = ["has_goal", "has_effort", "has_income", "has_mentorship", "has_resources", "has_network", "has_opportunity"];
+    const report = analyzeFutureGap({
+      subject,
+      presentAttributes: known,
+      expectedAttributes: expected,
+      activeBlockers: ["lack_of_opportunity"],
+    });
+    const text = `**${subject}** — a gap-analysis view (not a prediction):\n\n` +
+      `Gap score: **${report.futureLossScore}/100** (distance to a fully-resourced peer state)\n` +
+      `Currently missing: ${report.missingAttributes.join(", ") || "none identified"}\n` +
+      `Recovery actions:\n` + report.recoveryActions.map((a) => `- ${a}`).join("\n") +
+      `\n\n${GAP_DISCLAIMER}\n\nI can go deeper if you tell me your actual current situation, resources, or blockers.`;
+    await memory.saveConversation(userId, targetThread, "assistant", text);
+    return { role: "assistant", text, tool: "missing_future", memoryUsed: true };
+  }
+
   // ---- General conversation -> LLM router ----
   const knowledge = retrieveKnowledge(msg);
   const personal = personalContext(msg);
@@ -380,7 +424,18 @@ export async function respond(rawMessage: string, userId: string, isAdmin = fals
   const prefLang = userMemory.find((m) => m.key === "lang")?.value;
   const effLang: "bn" | "banglish" | "en" = prefLang === "bn" ? "bn" : prefLang === "banglish" ? "banglish" : lang;
   const personality = userMemory.find((m) => m.key === "personality")?.value;
-  const system = buildSystem(userId, userMemory, knowledge, isAdmin, effLang, emotion, personality) + personal;
+  // Phase 9/10/12/13: assemble personal intelligence + Bangladesh context +
+  // uncertainty directive in addition to the knowledge base.
+  const ctx = assembleContext(msg);
+  // Phase 13 (uncertainty guard): if the user asks a personal detail MAN does
+  // NOT have and has no stored memory to draw on, say so honestly instead of
+  // guessing. Skipped when there is user memory (the LLM may use it).
+  const guard = uncertaintyGuard(msg, ctx.hasPersonal);
+  if (guard && guard.confidence === "none" && userMemory.length === 0) {
+    await memory.saveConversation(userId, targetThread, "assistant", guard.response);
+    return { role: "assistant", text: guard.response, memoryUsed: true };
+  }
+  const system = buildSystem(userId, userMemory, knowledge, isAdmin, effLang, emotion, personality) + personal + ctx.system;
   const historyBlock = history.length
     ? `\nRecent conversation:\n${history.map((h) => `${h.role}: ${h.content}`).join("\n")}`
     : "";

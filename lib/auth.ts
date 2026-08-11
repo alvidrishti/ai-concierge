@@ -37,13 +37,21 @@ function newJti(): string {
   return randomBytes(16).toString("hex");
 }
 
-export async function signToken(payload: { userId: string; name: string; role: "user" | "admin" }): Promise<string> {
+export async function signToken(
+  payload: { userId: string; name: string; role: "user" | "admin" },
+  meta?: { device?: string; ip?: string; userAgent?: string }
+): Promise<string> {
   // R4: fail closed.
   if (!authReady()) throw new Error("AUTH_SECRET not configured; cannot issue session");
   const jti = newJti();
-  // record the session (production: Supabase; else best-effort in-memory)
+  // record the session (production: Supabase; else best-effort in-memory).
+  // Phase 1: capture privacy-safe device/IP metadata when provided.
+  const row: any = { jti, user_id: payload.userId, revoked: false, last_seen_at: new Date().toISOString() };
+  if (meta?.device) row.device = meta.device.slice(0, 200);
+  if (meta?.ip) row.ip = meta.ip.slice(0, 45);
+  if (meta?.userAgent) row.user_agent = meta.userAgent.slice(0, 300);
   if (dbEnabled()) {
-    await db.insert("sessions", { jti, user_id: payload.userId, revoked: false }).catch(() => {});
+    await db.insert("sessions", row).catch(() => {});
   }
   const body = Buffer.from(JSON.stringify({ ...payload, jti, exp: Date.now() + 7 * 86400000 }))
     .toString("base64url");

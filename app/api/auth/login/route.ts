@@ -8,7 +8,14 @@ import { rateLimit, clientIp, AUTH_LIMIT, AUTH_WINDOW_MS, authLimitKey } from "@
 export const runtime = "nodejs";
 
 // POST /api/auth/login  { name, email?, password, isAdmin? }
-// Rate-limited (IP + account aware) to prevent brute force. Generic errors.
+// REAL ACCOUNT LIFECYCLE (Phase 1):
+//  - Only EXISTING accounts may log in (no auto-create on login — this prevents
+//    someone registering a foreign email with a made-up password).
+//  - Password must match.
+//  - Account must be active/verified.
+//  - Wrong password -> generic 401 (does NOT reveal whether the account exists).
+//  - Unverified (correct password) -> 403, only reached after correct password.
+// Rate-limited (IP + account aware).
 export async function POST(req: Request) {
   try {
     const { name, email, password, isAdmin } = await req.json();
@@ -27,34 +34,54 @@ export async function POST(req: Request) {
       if (!verifyAdmin(password)) {
         return NextResponse.json({ error: "invalid credentials" }, { status: 401 });
       }
-      return issueSession(userId, name, "admin");
+      return issueSession(req, userId, name, "admin");
     }
 
-    if (dbEnabled()) {
-      const existing = await db.select("users", `&id=eq.${userId}`).catch(() => []);
-      if (existing.length) {
-        const user: any = existing[0];
-        if (!user.password_hash || user.password_hash.length < 16) {
-          return NextResponse.json({ error: "account requires password reset" }, { status: 403 });
-        }
-        if (user.password_hash !== hashPassword(password)) {
-          return NextResponse.json({ error: "invalid credentials" }, { status: 401 });
-        }
-      } else {
-        await db.insert("users", {
-          id: userId, name, email: email || "", role: "user", password_hash: hashPassword(password),
-        }).catch(() => {});
-      }
+    if (!dbEnabled()) {
+      return NextResponse.json({ error: "invalid credentials" }, { status: 401 });
     }
 
-    return issueSession(userId, name, "user");
+    // Find the account by name-derived id OR by email. No auto-create.
+    let user: any = null;
+    const byId = await db.select("users", `&id=eq.${encodeURIComponent(userId)}`).catch(() => []);
+    if (byId.length) user = byId[0];
+    else if (email) {
+      const byEmail = await db.select("users", `&email=eq.${encodeURIComponent(email)}`).catch(() => []);
+      if (byEmail.length) user = byEmail[0];
+    }
+    // Generic failure regardless of whether the account exists (no enumeration).
+    if (!user || !user.password_hash || user.password_hash.length < 16) {
+      return NextResponse.json({ error: "invalid credentials" }, { status: 401 });
+    }
+    // Wrong password -> generic 401 (does not reveal account existence).
+    if (user.password_hash !== hashPassword(password)) {
+      return NextResponse.json({ error: "invalid credentials" }, { status: 401 });
+    }
+    // Correct password but unverified/disabled -> only revealed after password.
+    if (user.status === "disabled") {
+      return NextResponse.json({ error: "Account disabled. Contact support." }, { status: 403 });
+    }
+    // Phase 1 account lifecycle: accounts created via the new flow are
+    // 'pending' until verified, and must verify before login. Accounts that
+    // existed before the verification columns (status NULL) are grandfathered
+    // as active so existing users are not locked out.
+    if (user.status === "pending") {
+      return NextResponse.json({ error: "Please verify your account before logging in." }, { status: 403 });
+    }
+
+    const displayName = user.name || name;
+    return issueSession(req, user.id, displayName, "user");
   } catch (e: any) {
     return NextResponse.json({ error: "Something went wrong" }, { status: 500 });
   }
 }
 
-async function issueSession(userId: string, name: string, role: "user" | "admin") {
-  const token = await signToken({ userId, name, role });
+async function issueSession(req: Request, userId: string, name: string, role: "user" | "admin") {
+  const ua = req.headers.get("user-agent") || "";
+  const token = await signToken(
+    { userId, name, role },
+    { device: ua.slice(0, 200), ip: req.headers.get("x-forwarded-for")?.split(",")[0]?.trim() || req.headers.get("x-real-ip") || undefined, userAgent: ua }
+  );
   const store = await cookies();
   store.set(cookieName(), token, {
     httpOnly: true,

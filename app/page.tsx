@@ -4,6 +4,7 @@ import { useEffect, useRef, useState, useCallback } from "react";
 import { renderMarkdown } from "@/lib/markdown";
 import { createVoice, VoiceController } from "@/lib/voice";
 import ManLogo, { ManMark } from "@/components/ManLogo";
+import ManSplash from "@/components/ManSplash";
 import {
   IconPlus, IconSearch, IconWeather, IconMap, IconCalculator, IconClock,
   IconMemory, IconExport, IconMic, IconSend, IconSettings, IconLogout,
@@ -58,6 +59,7 @@ export default function Page() {
   const [voiceStatus, setVoiceStatus] = useState("");
   const [speakOn, setSpeakOn] = useState(false);
   const [loginMsg, setLoginMsg] = useState("");
+  const [splash, setSplash] = useState(false);
   const [copied, setCopied] = useState<number | null>(null);
   const [showOnboarding, setShowOnboarding] = useState(false);
   const [onboardStep, setOnboardStep] = useState(0);
@@ -82,6 +84,19 @@ export default function Page() {
   useEffect(() => {
     chatRef.current?.scrollTo(0, chatRef.current.scrollHeight);
   }, [messages, loading, voiceStatus]);
+
+  // Phase 6: show the brand splash only on the first load of this browser
+  // session (skippable/non-annoying). sessionStorage so it's not replayed on
+  // every navigation within the same session.
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    let shown = false;
+    try { shown = sessionStorage.getItem("man_splash_shown") === "1"; } catch {}
+    if (!shown) {
+      setSplash(true);
+      try { sessionStorage.setItem("man_splash_shown", "1"); } catch {}
+    }
+  }, []);
 
   // Close the Tools menu on Escape or outside click. Only one overlay open at a time.
   useEffect(() => {
@@ -298,9 +313,21 @@ export default function Page() {
     const d = await res.json();
     setAuthBusy(false);
     if (d.ok) {
-      setAuth({ id:d.userId, name:d.name, role:d.role }); setView("chat");
-      if (!localStorage.getItem("man_onboarded_"+d.userId)){ setShowOnboarding(true); setOnboardStep(0);}
-      loadThreads();
+      // Phase 1 account lifecycle: email/phone signup now requires verification
+      // before any session is issued, so do NOT auto-login here.
+      if (d.needsVerification === "email") {
+        setLoginMsg(d.message || "Check your email to verify your account, then log in.");
+        setAuthMode("landing");
+      } else if (d.needsVerification === "phone") {
+        // Route to phone sign-in to complete OTP verification.
+        setLoginMsg(d.message || "Verify your phone with a one-time code to activate your account.");
+        setAuthMode("phone");
+        setOtpRequested(false);
+      } else {
+        setAuth({ id:d.userId, name:d.name, role:d.role }); setView("chat");
+        if (!localStorage.getItem("man_onboarded_"+d.userId)){ setShowOnboarding(true); setOnboardStep(0);}
+        loadThreads();
+      }
     } else setLoginMsg(d.error || "Couldn't create account.");
   }
 
@@ -749,6 +776,7 @@ export default function Page() {
           {loading && <div className="voice-status" role="status"><span className="pulse-dot"></span>Thinking…</div>}
         </div>
       </main>
+      {splash && <ManSplash onDone={() => setSplash(false)} />}
     </div>
   );
 }

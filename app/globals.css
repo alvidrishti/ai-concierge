@@ -322,3 +322,25 @@ button { font-family: inherit; color: inherit; }
 .phone-row select { flex: 0 0 auto; }
 .cc-select { background: var(--man-surface); color: var(--man-text); border: 1px solid var(--man-border); border-radius: var(--radius-md); padding: 12px 10px; font-size: 0.9rem; }
 .auth-ok { color: var(--man-success); font-size: 0.85rem; text-align: center; margin: 14px 0; }
+
+/* ============================================================
+   MAN BRAND SYSTEM (Phase 5) + STARTUP (Phase 6)
+   ============================================================ */
+@keyframes manBlink { 50% { opacity: 0 } }
+@keyframes manSpinPulse {
+  0%   { opacity: .55; transform: rotate(0deg) scale(.96); }
+  50%  { opacity: 1;   transform: rotate(180deg) scale(1); }
+  100% { opacity: .55; transform: rotate(360deg) scale(.96); }
+}
+.brand-loader svg { animation: manSpinPulse 1.1s linear infinite; }
+.brand-caret { animation: manBlink 1s steps(2,start) infinite; }
+.man-splash { will-change: opacity; }
+.man-splash .brand-splash-tagline {
+  color: var(--man-text-dim);
+  font-size: 13px;
+  letter-spacing: 3px;
+  text-transform: uppercase;
+  opacity: 0;
+  animation: manSplashFade .5s var(--ease) forwards;
+}
+@keyframes manSplashFade { to { opacity: 1 } }

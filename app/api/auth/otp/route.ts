@@ -76,15 +76,26 @@ export async function POST(req: Request) {
     await db.update("verification_codes", `id=eq.${match.id}`, { used: true }).catch(() => {});
 
     // Link to a REAL user account (upsert by phone) — fixes synthetic user_id.
+    // Phase 1: phone signup is now verified — set phone_verified_at + active.
     const userId = "u_phone_" + full.replace(/[^a-z0-9]/gi, "_");
     const existing = await db.select("users", `&phone=eq.${encodeURIComponent(full)}`).catch(() => []);
-    if (!existing.length) {
-      await db.insert("users", { id: userId, name: phone, phone: full, role: "user", password_hash: "" }).catch(() => {});
+    if (existing.length) {
+      await db.update("users", `id=eq.${encodeURIComponent(existing[0].id)}`,
+        { phone_verified_at: new Date().toISOString(), status: "active" }).catch(() => {});
+    } else {
+      await db.insert("users", {
+        id: userId, name: phone, phone: full, role: "user", password_hash: "",
+        status: "active", phone_verified_at: new Date().toISOString(),
+      }).catch(() => {});
     }
 
     // Issue a REAL session using the SAME auth abstraction as email/password:
     // signToken() creates jti + records the session in the sessions table.
-    const token = await signToken({ userId, name: phone, role: "user" });
+    const ua = req.headers.get("user-agent") || "";
+    const token = await signToken(
+      { userId, name: phone, role: "user" },
+      { device: ua.slice(0, 200), ip: req.headers.get("x-forwarded-for")?.split(",")[0]?.trim() || req.headers.get("x-real-ip") || undefined, userAgent: ua }
+    );
     const store = await cookies();
     store.set(cookieName(), token, {
       httpOnly: true,
