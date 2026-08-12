@@ -14,6 +14,7 @@
 // still sign/verify (stateless) but revocation is best-effort.
 
 import { createHmac, timingSafeEqual, randomBytes } from "crypto";
+import bcrypt from "bcryptjs";
 import { db, dbEnabled } from "./db";
 
 const SECRET = process.env.AUTH_SECRET || "";
@@ -96,9 +97,35 @@ export async function revokeAllSessions(userId: string): Promise<void> {
 }
 
 export function hashPassword(pw: string): string {
-  // R4: requires a real secret.
+  // Phase 3 (Auth hardening): production-grade password hashing with bcrypt.
+  // R4: still fail-closed — refuse to hash without a configured deployment
+  // secret, preserving the original security invariant.
   if (!authReady()) throw new Error("AUTH_SECRET not configured");
-  return createHmac("sha256", SECRET).update(pw).digest("hex");
+  return bcrypt.hashSync(pw, 10); // cost 10; bcryptjs is pure-JS (serverless-safe)
+}
+
+// Detect whether a stored hash uses the legacy HMAC-SHA256 scheme (pre-Phase 3).
+// bcrypt hashes always start with "$2"; legacy hashes are 64-char hex.
+export function isLegacyPasswordHash(stored: string): boolean {
+  return !!stored && !stored.startsWith("$2");
+}
+
+// Verify a password against the stored hash. Handles BOTH schemes so existing
+// users keep working during the migration: bcrypt for new/upgraded accounts,
+// legacy HMAC-SHA256 for accounts not yet rehashed. New accounts always bcrypt.
+export function verifyPassword(pw: string, stored: string): boolean {
+  if (!stored) return false;
+  if (!stored.startsWith("$2")) {
+    // Legacy HMAC-SHA256(secret, password). Requires the deployment secret.
+    if (!authReady()) return false;
+    const h = createHmac("sha256", SECRET).update(pw).digest("hex");
+    return timingSafeEqual(Buffer.from(h, "hex"), Buffer.from(stored, "hex"));
+  }
+  try {
+    return bcrypt.compareSync(pw, stored);
+  } catch {
+    return false;
+  }
 }
 
 export function verifyAdmin(password: string): boolean {

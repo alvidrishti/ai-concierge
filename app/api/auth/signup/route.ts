@@ -1,8 +1,6 @@
 import { NextResponse } from "next/server";
-import { cookies } from "next/headers";
 import { db, dbEnabled } from "@/lib/db";
-import { hashPassword, signToken } from "@/lib/auth";
-import { cookieName } from "@/lib/session";
+import { hashPassword } from "@/lib/auth";
 import { createVerificationToken } from "@/lib/account";
 import { deliver, normalizePhone } from "@/lib/recovery";
 import { rateLimit, clientIp, AUTH_LIMIT, AUTH_WINDOW_MS, authLimitKey } from "@/lib/ratelimit";
@@ -16,13 +14,15 @@ function isValidEmail(email: string): boolean {
 }
 
 // POST /api/auth/signup  { name, email?, phone?, password }
-// REAL ACCOUNT LIFECYCLE (Phase 1) with GRACEFUL fallback:
-//  - Email signup creates a PENDING (UNVERIFIED) account and attempts to send a
-//    one-time verification email. If the email is DELIVERED, the account stays
-//    PENDING until verified (secure). If delivery is UNAVAILABLE (no provider /
-//    provider rejects), the account is ACTIVATED immediately so the user is
-//    never locked out — with an honest note. This prevents a dead-end where
-//    no verification can reach the user.
+// REAL ACCOUNT LIFECYCLE (Phase 3 — hardened):
+//  - Email signup ALWAYS creates a PENDING (UNVERIFIED) account. It attempts to
+//    send a one-time verification email. Regardless of whether delivery
+//    succeeds, the account stays PENDING until a real verification token is
+//    consumed (or phone OTP is verified). An unverified email is NEVER
+//    auto-activated into a trusted account (fixes the previous gap where a
+//    missing email provider silently activated accounts).
+//  - If email delivery is unavailable, we return a graceful fallback state so
+//    the client can offer resend / phone OTP — but NEVER activate the account.
 //  - Phone-only signup is verified through /api/auth/otp (OTP flow).
 export async function POST(req: Request) {
   try {
@@ -74,15 +74,13 @@ export async function POST(req: Request) {
         });
       }
 
-      // Delivery UNAVAILABLE -> activate immediately so the user is never locked
-      // out. Honest: we do not claim the email was sent.
-      await db.update("users", `id=eq.${encodeURIComponent(userId)}`, { status: "active" }).catch(() => {});
-      const token = await signToken({ userId, name, role: "user" });
-      const store = await cookies();
-      store.set(cookieName(), token, { httpOnly: true, sameSite: "lax", secure: process.env.NODE_ENV === "production", path: "/", maxAge: 7 * 86400 });
+      // Delivery UNAVAILABLE -> STILL PENDING. Never auto-activate an unverified
+      // account (Phase 3 security fix). Return a graceful fallback so the client
+      // can prompt resend / phone OTP verification. No session is issued.
       return NextResponse.json({
-        ok: true, status: "active", authenticated: true, userId, name, role: "user",
-        message: "Account created. (Email verification isn't available yet, so you're signed in directly.)",
+        ok: true, status: "pending", needsVerification: "email",
+        fallback: "resend_or_otp",
+        message: "We could not send a verification email right now. Your account is pending. Please verify via the resend option or phone OTP to activate it.",
       });
     }
 

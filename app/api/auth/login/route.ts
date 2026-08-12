@@ -1,7 +1,8 @@
 import { NextResponse } from "next/server";
 import { cookies } from "next/headers";
 import { db, dbEnabled } from "@/lib/db";
-import { hashPassword, signToken } from "@/lib/auth";
+import { signToken, verifyPassword, isLegacyPasswordHash } from "@/lib/auth";
+import { hashPassword } from "@/lib/auth";
 import { cookieName } from "@/lib/session";
 import { rateLimit, clientIp, AUTH_LIMIT, AUTH_WINDOW_MS, authLimitKey } from "@/lib/ratelimit";
 
@@ -61,8 +62,16 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: "invalid credentials" }, { status: 401 });
     }
     // Wrong password -> generic 401 (does not reveal account existence).
-    if (user.password_hash !== hashPassword(password)) {
+    // verifyPassword supports both bcrypt (new) and legacy HMAC (migration).
+    if (!verifyPassword(password, user.password_hash || "")) {
       return NextResponse.json({ error: "invalid credentials" }, { status: 401 });
+    }
+    // Rehash-on-login: silently upgrade any legacy HMAC hash to bcrypt now that
+    // the password has been verified. Prevents locking out existing users.
+    if (isLegacyPasswordHash(user.password_hash || "")) {
+      await db.update("users", `id=eq.${encodeURIComponent(user.id)}`, {
+        password_hash: hashPassword(password),
+      }).catch(() => {});
     }
     // Correct password but unverified/disabled -> only revealed after password.
     if (user.status === "disabled") {
@@ -97,5 +106,7 @@ async function issueSession(req: Request, userId: string, name: string, role: "u
     path: "/",
     maxAge: 7 * 86400,
   });
-  return NextResponse.json({ ok: true, userId, name, role });
+  // Phase 3: also return the token in the body so the Expo mobile client can
+  // persist it in SecureStore and send it as `Authorization: Bearer <token>`.
+  return NextResponse.json({ ok: true, userId, name, role, token });
 }
