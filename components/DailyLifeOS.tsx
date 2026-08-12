@@ -13,6 +13,8 @@ interface FinRec { id: string; type: "income" | "expense"; category: string; amo
 interface DebtRec { id: string; direction: "lent" | "borrowed"; person: string; amount: number; date?: string; reason?: string; status: string; }
 interface PlanRec { id: string; date: string; time?: string; title: string; category?: string; done: boolean; note?: string; }
 interface MemItem { key: string; value: string; }
+interface NoteRec { id: string; title: string; body?: string; category?: string; pinned: boolean; }
+interface RepRec { id: string; debt_id: string; amount: number; date?: string; note?: string; }
 
 // Finance categories accepted by the backend lib (kept aligned to avoid drift).
 const INCOME_CATS = ["salary", "service_charge", "freelance_income", "grant", "other_income"];
@@ -40,6 +42,9 @@ export default function DailyLifeOS({ auth, onOpenChat, onLogout }: {
   const [debts, setDebts] = useState<DebtRec[]>([]);
   const [plans, setPlans] = useState<PlanRec[]>([]);
   const [mem, setMem] = useState<MemItem[]>([]);
+  const [notes, setNotes] = useState<NoteRec[]>([]);
+  const [reps, setReps] = useState<RepRec[]>([]);
+  const [today, setToday] = useState<any>(null);
 
   // MONEY inputs
   const [fType, setFType] = useState<"income" | "expense">("expense");
@@ -55,6 +60,8 @@ export default function DailyLifeOS({ auth, onOpenChat, onLogout }: {
   const [pTitle, setPTitle] = useState("");
   const [pTime, setPTime] = useState("");
   const [pCat, setPCat] = useState("task");
+  const [nTitle, setNTitle] = useState("");
+  const [nBody, setNBody] = useState("");
 
   // MORE
   const [caps, setCaps] = useState<any[]>([]);
@@ -68,13 +75,18 @@ export default function DailyLifeOS({ auth, onOpenChat, onLogout }: {
   };
 
   const load = useCallback(async () => {
-    const [fd, dd, pd, md] = await Promise.all([
+    const [fd, dd, pd, md, nd, rd] = await Promise.all([
       api("/api/finance"), api("/api/debts"), api("/api/plans?date=" + todayStr()), api("/api/memory"),
+      api("/api/notes"), api("/api/repayments"),
     ]);
     if (fd.records) setFin(fd.records);
     if (dd.debts) setDebts(dd.debts);
     if (pd.plans) setPlans(pd.plans);
     if (md.memory) setMem(md.memory);
+    if (nd.notes) setNotes(nd.notes);
+    if (rd.repayments) setReps(rd.repayments);
+    const t = await api("/api/today");
+    if (t.ok) setToday(t);
   }, []);
 
   useEffect(() => { load(); }, [load]);
@@ -125,6 +137,22 @@ export default function DailyLifeOS({ auth, onOpenChat, onLogout }: {
   const delPlan = async (id: string) => { await api("/api/plans?id=" + id, { method: "DELETE" }); await load(); };
 
   const delMem = async (key: string) => { await api("/api/memory?key=" + encodeURIComponent(key), { method: "DELETE" }); await load(); };
+
+  const addNote = async () => {
+    if (!nTitle.trim()) { flash("err", "Note title dite hobe"); return; }
+    const d = await api("/api/notes", { method: "POST", body: JSON.stringify({ title: nTitle, body: nBody }) });
+    if (d.note) { flash("ok", "Note saved"); setNTitle(""); setNBody(""); await load(); }
+    else flash("err", d.error || "Fail hoyeche");
+  };
+  const delNote = async (id: string) => { await api("/api/notes?id=" + id, { method: "DELETE" }); await load(); };
+
+  const addRep = async (debtId: string, amount: string) => {
+    const amt = parseFloat(amount);
+    if (!amt || amt <= 0) { flash("err", "Valid amount dite hobe"); return; }
+    const d = await api("/api/repayments", { method: "POST", body: JSON.stringify({ debt_id: debtId, amount: amt }) });
+    if (d.repayment) { flash("ok", "Repayment recorded"); await load(); }
+    else flash("err", d.error || "Fail hoyeche");
+  };
 
   const sendFeedback = async () => {
     if (!fbMsg.trim()) { flash("err", "Message dite hobe"); return; }
@@ -267,14 +295,22 @@ export default function DailyLifeOS({ auth, onOpenChat, onLogout }: {
 
             <div className="os-card os-insight">
               <h3 style={{ color: "var(--man-primary-2)" }}>MAN insight</h3>
-              {mExpense > mIncome && mIncome > 0 ? (
-                <div><b>Ei mashe apnar khOrch ({taka(mExpense)})</b> income-er ({taka(mIncome)}) theke beshi — savings negative. Ekhto budgeting-mano dhoro.</div>
-              ) : savings > 0 ? (
-                <div>Ei mashe apni <b>{taka(savings)}</b> save korte perechen. Bhalo jobe!</div>
-              ) : (
-                <div>Ei mashe ekhono kono finance record nei. MONEY tab-e income/expense add korun — tahole MAN insight dekhate parbe.</div>
-              )}
+              {today?.insight ? <div>{today.insight}</div> : <div>MONEY tab-e income/expense add korun — tahole MAN insight dekhate parbe.</div>}
             </div>
+
+            {notes.length > 0 && (
+              <div className="os-card">
+                <h3>Notes</h3>
+                <ul className="os-list">
+                  {notes.slice(0, 5).map((n) => (
+                    <li key={n.id}>
+                      <div className="g"><b>{n.title}</b><div className="t">{n.body || ""}</div></div>
+                      {n.pinned && <span className="pill">pinned</span>}
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
           </>
         )}
 
@@ -334,18 +370,34 @@ export default function DailyLifeOS({ auth, onOpenChat, onLogout }: {
               </div>
               {debts.length === 0 ? <div className="os-empty">Kono debt nei.</div> : (
                 <ul className="os-list">
-                  {debts.map((d) => (
-                    <li key={d.id}>
-                      <div className="g"><b>{d.person}</b> <span className="pill">{d.direction}</span><span className="pill">{d.status}</span><div className="t">{d.reason || ""}</div></div>
-                      <div className="v" style={{ fontWeight: 600 }}>{taka(d.amount)}</div>
-                      {d.status === "open" && (
-                        <button className="os-ghost" onClick={() => settleDebt(d.id, d.direction === "lent" ? "returned" : "settled")}>
-                          {d.direction === "lent" ? "Returned" : "Settled"}
-                        </button>
-                      )}
-                    </li>
-                  ))}
+                  {debts.map((d) => {
+                    const paid = reps.filter((r) => r.debt_id === d.id).reduce((s, r) => s + Number(r.amount), 0);
+                    const remaining = Math.max(0, Number(d.amount) - paid);
+                    return (
+                      <li key={d.id}>
+                        <div className="g"><b>{d.person}</b> <span className="pill">{d.direction}</span><span className="pill">{d.status}</span><div className="t">{d.reason || ""}</div></div>
+                        <div className="v" style={{ fontWeight: 600 }}>{taka(d.amount)}</div>
+                        {d.status === "open" && (
+                          <>
+                            <span className="pill">left {taka(remaining)}</span>
+                            <input
+                              style={{ width: 84, padding: "6px 8px" }}
+                              type="number"
+                              placeholder="repay"
+                              onKeyDown={(e) => { if (e.key === "Enter") addRep(d.id, (e.target as HTMLInputElement).value); }}
+                              onBlur={(e) => { if (e.target.value) { addRep(d.id, e.target.value); e.target.value = ""; } }}
+                            />
+                          </>
+                        )}
+                      </li>
+                    );
+                  })}
                 </ul>
+              )}
+              {reps.length > 0 && (
+                <div style={{ marginTop: 12, fontSize: ".78rem", color: "var(--man-text-dim)" }}>
+                  Recent repayments: {reps.slice(0, 4).map((r) => <span key={r.id} className="pill" style={{ marginLeft: 4 }}>{taka(r.amount)}</span>)}
+                </div>
               )}
             </div>
           </>
@@ -384,6 +436,26 @@ export default function DailyLifeOS({ auth, onOpenChat, onLogout }: {
             <div className="os-card">
               <h3>MAN planning tip</h3>
               <div className="os-sub">Natural language-e bolte paren, jemon: &ldquo;আগামীকাল সকাল ৮টায় বাজারে যেতে হবে&rdquo; — MAN tab-e gie oi bhabe bolle MAN structured plan banie dite pare.</div>
+            </div>
+
+            <div className="os-card">
+              <h3>Notes</h3>
+              <div className="row" style={{ marginBottom: 10 }}>
+                <input className="in" placeholder="Note title" value={nTitle} onChange={(e) => setNTitle(e.target.value)} />
+                <input className="in" placeholder="Body (optional)" value={nBody} onChange={(e) => setNBody(e.target.value)} />
+                <button className="os-cta" onClick={addNote}>Add</button>
+              </div>
+              {notes.length === 0 ? <div className="os-empty">Kono note nei.</div> : (
+                <ul className="os-list">
+                  {notes.map((n) => (
+                    <li key={n.id}>
+                      <div className="g"><b>{n.title}</b><div className="t">{n.body || ""}</div></div>
+                      {n.pinned && <span className="pill">pinned</span>}
+                      <button className="del" onClick={() => delNote(n.id)}>✕</button>
+                    </li>
+                  ))}
+                </ul>
+              )}
             </div>
           </>
         )}

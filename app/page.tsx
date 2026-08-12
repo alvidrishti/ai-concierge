@@ -9,7 +9,7 @@ import DailyLife from "@/components/DailyLife";
 import LifeDashboard from "@/components/LifeDashboard";
 import DailyLifeOS from "@/components/DailyLifeOS";
 import {
-  IconPlus, IconSearch, IconWeather, IconMap, IconCalculator, IconClock,
+  IconPlus, IconWeather, IconCalculator, IconClock,
   IconMemory, IconExport, IconMic, IconSend, IconSettings, IconLogout,
   IconMenu, IconX, IconEdit, IconTrash, IconCopy, IconRefresh, IconStop,
   IconGlobe, IconCheck, IconMessage, IconSparkle,
@@ -22,19 +22,19 @@ interface Thread { id: string; title: string | null; updated_at?: string; }
 
 // Tools actually supported by the backend. Each has an icon, title, and a
 // one-line subtle description for the command menu.
+// Tools shown in the + menu. Kept to a focused set that directly supports daily
+// life management (freeze: no random tool sprawl). The rest remain available
+// via plain conversation if the agent needs them.
 const TOOLS = [
-  { id: "search", label: "Search", desc: "Search the web for current information", icon: IconSearch, prompt: "search the web for " },
-  { id: "weather", label: "Weather", desc: "Check current conditions and forecasts", icon: IconWeather, prompt: "what is the weather in " },
-  { id: "places", label: "Places", desc: "Find places and locations", icon: IconMap, prompt: "find 3 coffee shops near Dhanmondi" },
-  { id: "calc", label: "Calculator", desc: "Do quick calculations", icon: IconCalculator, prompt: "what is " },
   { id: "reminder", label: "Reminder", desc: "Set a reminder for later", icon: IconClock, prompt: "remind me about " },
+  { id: "calc", label: "Calculator", desc: "Do quick calculations", icon: IconCalculator, prompt: "what is " },
+  { id: "weather", label: "Weather", desc: "Check current conditions", icon: IconWeather, prompt: "what is the weather in " },
 ];
 
 const WELCOME_CARDS = [
-  { id: "research", label: "Research", desc: "Find and synthesize information", icon: IconSearch, prompt: "search the web for latest AI developments" },
-  { id: "plan", label: "Plan", desc: "Turn an idea into an actionable plan", icon: IconMessage, prompt: "help me plan my day" },
-  { id: "create", label: "Create", desc: "Write, design, or brainstorm", icon: IconSparkle, prompt: "help me brainstorm ideas for " },
+  { id: "plan", label: "Plan", desc: "Turn an idea into a daily plan", icon: IconMessage, prompt: "help me plan my day" },
   { id: "remember", label: "Remember", desc: "Save something for later", icon: IconMemory, prompt: "remember that I like " },
+  { id: "money", label: "Money", desc: "Track income or expense", icon: IconCalculator, prompt: "add an expense of " },
 ];
 
 // Daypart-aware greeting (Bangla + English).
@@ -117,18 +117,18 @@ export default function Page() {
     chatRef.current?.scrollTo(0, chatRef.current.scrollHeight);
   }, [messages, loading, voiceStatus]);
 
-  // Phase 6: show the brand splash only on the first load of this browser
-  // session (skippable/non-annoying). sessionStorage so it's not replayed on
-  // every navigation within the same session.
-  useEffect(() => {
-    if (typeof window === "undefined") return;
+  // Phase 6: show the brand splash AFTER authentication is confirmed, so the
+  // logged-in user's name can be shown. Shown once per browser session
+  // (skippable/non-annoying). For a returning authenticated user the splash
+  // shows their name -> MAN -> tagline -> TODAY/OS.
+  const showSplashOnce = () => {
     let shown = false;
     try { shown = sessionStorage.getItem("man_splash_shown") === "1"; } catch {}
     if (!shown) {
       setSplash(true);
       try { sessionStorage.setItem("man_splash_shown", "1"); } catch {}
     }
-  }, []);
+  };
 
   // Close the Tools menu on Escape or outside click. Only one overlay open at a time.
   useEffect(() => {
@@ -157,6 +157,7 @@ export default function Page() {
           setMemories(d.memory || []);
           setStats(d.stats || null);
           if (!localStorage.getItem("man_onboarded_" + d.user.id)) setShowOnboarding(true);
+          showSplashOnce(); // splash shows the authenticated user's name
         }
       } catch { /* offline */ }
       const v = createVoice((t) => { setVoiceStatus(""); sendRef.current(t); });
@@ -693,11 +694,14 @@ export default function Page() {
   // MAN — Personal Daily Life OS (frozen navigation: TODAY·MONEY·PLAN·MAN·MORE)
   if (view === "os") {
     return (
-      <DailyLifeOS
-        auth={auth || { id: "", name: "User", role: "user" }}
-        onOpenChat={() => setView("chat")}
-        onLogout={logout}
-      />
+      <>
+        <DailyLifeOS
+          auth={auth || { id: "", name: "User", role: "user" }}
+          onOpenChat={() => setView("chat")}
+          onLogout={logout}
+        />
+        {splash && <ManSplash name={auth?.name} onDone={() => setSplash(false)} />}
+      </>
     );
   }
 
@@ -1114,7 +1118,7 @@ export default function Page() {
           {loading && <div className="voice-status" role="status"><span className="pulse-dot"></span>Thinking…</div>}
         </div>
       </main>
-      {splash && <ManSplash onDone={() => setSplash(false)} />}
+      {splash && <ManSplash name={auth?.name} onDone={() => setSplash(false)} />}
     </div>
   );
 }
