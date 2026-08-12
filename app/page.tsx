@@ -5,12 +5,13 @@ import { renderMarkdown } from "@/lib/markdown";
 import { createVoice, VoiceController } from "@/lib/voice";
 import ManLogo, { ManMark } from "@/components/ManLogo";
 import ManSplash from "@/components/ManSplash";
+import DailyLife from "@/components/DailyLife";
 import {
   IconPlus, IconSearch, IconWeather, IconMap, IconCalculator, IconClock,
   IconMemory, IconExport, IconMic, IconSend, IconSettings, IconLogout,
   IconMenu, IconX, IconEdit, IconTrash, IconCopy, IconRefresh, IconStop,
   IconGlobe, IconCheck, IconMessage, IconSparkle,
-  IconFeedback, IconStar, IconSparkles,
+  IconFeedback, IconStar, IconSparkles, IconCalendar,
 } from "@/components/icons";
 
 interface Msg { role: "user" | "assistant"; text: string; provider?: string; pendingAction?: any; }
@@ -56,7 +57,7 @@ function relativeTime(iso?: string): string {
 
 export default function Page() {
   const [auth, setAuth] = useState<null | { id: string; name: string; role: string }>(null);
-  const [view, setView] = useState<"login" | "chat">("login");
+  const [view, setView] = useState<"login" | "chat" | "life">("login");
   const [messages, setMessages] = useState<Msg[]>([]);
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
@@ -659,6 +660,7 @@ export default function Page() {
         ))}
       </div>
       <div className="sidebar-foot">
+        <button className="side-item" onClick={() => setView("life")}><IconCalendar /> Daily Life</button>
         <button className="side-item" onClick={() => { setShowMemory((s) => !s); if (!showMemory) refreshMemory(); }}><IconMemory /> Memory</button>
         <button className="side-item" onClick={() => setFeedbackOpen(true)}><IconFeedback /> Feedback</button>
         {auth?.role === "admin" && <button className="side-item" onClick={loadAdminUsage}><IconMessage /> Usage</button>}
@@ -666,6 +668,16 @@ export default function Page() {
       </div>
     </div>
   );
+
+  if (view === "life") {
+    return (
+      <div className="app">
+        <main className="main-col" style={{ minHeight: "100vh" }}>
+          <DailyLife onBack={() => setView("chat")} />
+        </main>
+      </div>
+    );
+  }
 
   return (
     <div className="app">

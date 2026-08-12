@@ -193,6 +193,26 @@ async function main() {
   const trans = bdLife.retrieveBDHelp("how do I travel by bus in Dhaka?");
   check("daily-life transport help present", trans.toLowerCase().includes("bus"));
 
+  // ---------------- MAN Daily-Life Platform (2027) ----------------
+  console.log("\n[Daily-Life Platform] Profiles, plans, hotels, bookings, invoices");
+  const dl = await import("../lib/daily_life");
+  // daily_life uses Supabase (db-gated); verify module loads + exports exist.
+  check("daily_life exports present",
+    typeof dl.upsertProfile === "function" && typeof dl.addPlan === "function" &&
+    typeof dl.upsertHotel === "function" && typeof dl.createBooking === "function" &&
+    typeof dl.createInvoice === "function");
+  check("daily_life functions exist",
+    ["getProfile","listPlans","togglePlan","deletePlan","listHotels","getHotel","listInvoices","getInvoice"].every(
+      (k) => typeof (dl as any)[k] === "function"));
+  // Pure invoice math (no DB): subtotal computation mirrors route logic.
+  const items = [{ description:"Deluxe Room", qty:2, price:2500 }, { description:"Breakfast", qty:2, price:300 }];
+  const subtotal = items.reduce((s, it: any) => s + (Number(it.qty)||0)*(Number(it.price)||0), 0);
+  const tax = Math.round(subtotal * 0.05 * 100)/100;
+  const total = Math.round((subtotal + tax)*100)/100;
+  check("invoice subtotal = 5600", subtotal === 5600, `got ${subtotal}`);
+  check("invoice tax = 280 (5%)", tax === 280, `got ${tax}`);
+  check("invoice total = 5880", total === 5880, `got ${total}`);
+
   console.log(`\n${pass} passed, ${fail} failed`);
   process.exit(fail ? 1 : 0);
 }

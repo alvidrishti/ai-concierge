@@ -445,3 +445,39 @@ button { font-family: inherit; color: inherit; }
   background: var(--man-surface-2); color: var(--man-text); border: 1px solid var(--man-border);
   border-radius: var(--radius-md); cursor: pointer; transition: all var(--speed) var(--ease); }
 .pay-method:hover { border-color: var(--man-primary); background: var(--man-hover); }
+
+/* ===== MAN Daily-Life Platform dashboard ===== */
+.dash { display: flex; flex-direction: column; height: 100%; min-height: 0; }
+.dash-top { display: flex; align-items: center; gap: 12px; padding: 12px 20px; border-bottom: 1px solid var(--man-border); }
+.dash-title { font-size: 1.2rem; font-weight: 800; }
+.dash-msg { margin-left: auto; color: var(--man-success); font-size: 0.85rem; }
+.dash-nav { display: flex; gap: 4px; padding: 10px 20px; border-bottom: 1px solid var(--man-border); overflow-x: auto; }
+.dash-tab { background: transparent; color: var(--man-text-muted); border: none; padding: 8px 14px; border-radius: var(--radius-pill); font-size: 0.9rem; cursor: pointer; white-space: nowrap; }
+.dash-tab.active { background: var(--man-grad); color: #0a0a0f; font-weight: 700; }
+.dash-body { flex: 1; overflow-y: auto; padding: 20px; }
+.dash-home { max-width: 760px; margin: 0 auto; }
+.dash-home h2 { font-size: 1.6rem; margin-bottom: 6px; }
+.dash-lead { color: var(--man-text-dim); margin-bottom: 18px; }
+.dash-cards { display: grid; grid-template-columns: repeat(auto-fill, minmax(210px, 1fr)); gap: 14px; }
+.dash-card { display: flex; flex-direction: column; gap: 8px; text-align: left; padding: 18px; background: var(--man-surface); border: 1px solid var(--man-border); border-radius: var(--radius-lg); cursor: pointer; color: var(--man-text); transition: all var(--speed) var(--ease); }
+.dash-card:hover { border-color: var(--man-primary); transform: translateY(-2px); }
+.dash-card span { font-size: 0.82rem; color: var(--man-text-dim); }
+.dash-section { max-width: 760px; margin: 0 auto; }
+.dash-section h3 { font-size: 1.3rem; margin-bottom: 12px; }
+.dash-section h4 { font-size: 1rem; color: var(--man-text-muted); margin: 20px 0 8px; }
+.dash-form-row { display: flex; gap: 8px; margin-bottom: 10px; flex-wrap: wrap; }
+.dash-form-col { display: flex; flex-direction: column; gap: 10px; }
+.dash-input { background: var(--man-bg-2); color: var(--man-text); border: 1px solid var(--man-border); border-radius: var(--radius-md); padding: 10px 12px; font-size: 0.9rem; }
+.dash-input.grow { flex: 1; min-width: 120px; }
+.dash-input:focus { outline: none; border-color: var(--man-primary); }
+.dash-btn { background: var(--man-grad); color: #0a0a0f; font-weight: 700; border: none; border-radius: var(--radius-md); padding: 10px 18px; cursor: pointer; font-size: 0.9rem; }
+.dash-btn.small { padding: 6px 12px; font-size: 0.8rem; }
+.dash-list { display: flex; flex-direction: column; gap: 8px; }
+.dash-item { display: flex; align-items: center; gap: 10px; padding: 10px 12px; background: var(--man-surface); border: 1px solid var(--man-border); border-radius: var(--radius-md); }
+.dash-item.done .dash-item-title { text-decoration: line-through; color: var(--man-text-dim); }
+.dash-check { background: none; border: none; font-size: 1.1rem; cursor: pointer; color: var(--man-text); }
+.dash-item-time { font-weight: 700; color: var(--man-primary); min-width: 44px; }
+.dash-item-title { flex: 1; }
+.dash-item-note { color: var(--man-text-dim); font-size: 0.82rem; }
+.dash-del { background: none; border: none; color: var(--man-danger); cursor: pointer; font-size: 1rem; }
+.dash-empty { color: var(--man-text-dim); font-style: italic; }

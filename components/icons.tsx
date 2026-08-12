@@ -40,3 +40,4 @@ export const IconMessage = (p: any) => (<Base {...p}><path d="M21 12a8 8 0 0 1-8
 export const IconFeedback = (p: any) => (<Base {...p}><path d="M21 11.5a8.5 8.5 0 0 1-8.5 8.5H4l2-3a8.5 8.5 0 1 1 15-5.5z"/><path d="M8 11h.01M12 11h.01M16 11h.01"/></Base>);
 export const IconStar = (p: any) => (<Base {...p}><path d="M12 3l2.7 5.5 6 .9-4.3 4.2 1 6L12 17l-5.4 2.6 1-6-4.3-4.2 6-.9z"/></Base>);
 export const IconSparkles = (p: any) => (<Base {...p}><path d="M12 3l1.8 4.8L18.6 9 13.8 10.8 12 15l-1.8-4.2L5.4 9l4.8-1.2z"/><path d="M19 15l.9 2.1L22 18l-2.1.9L19 21l-.9-2.1L16 18l2.1-.9z"/></Base>);
+export const IconCalendar = (p: any) => (<Base {...p}><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M3 9h18M8 3v4M16 3v4M8 13h.01M12 13h.01M16 13h.01M8 17h.01M12 17h.01"/></Base>);

@@ -281,3 +281,113 @@ alter table public.finances enable row level security;
 drop policy if exists "service role all" on public.finances;
 create policy "service role all" on public.finances for all using (true) with check (true);
 create index if not exists idx_finances_user on public.finances(user_id, created_at);
+
+-- ============================================================
+-- MAN DAILY-LIFE PLATFORM (2027 expansion)
+-- ============================================================
+
+-- User profiles: personal info (name, address, image) + business role
+create table if not exists public.profiles (
+  user_id text primary key,
+  full_name text,
+  phone text,
+  email text,
+  address text,                       -- full address
+  district text,                      -- e.g. Rangpur
+  division text,                      -- e.g. Rangpur
+  avatar_url text,                    -- profile image (upload key)
+  account_type text default 'personal', -- 'personal' | 'business'
+  business_name text,                 -- if business
+  business_type text,                 -- 'hotel' | 'resort' | 'restaurant' | 'other'
+  bio text,
+  created_at timestamptz default now(),
+  updated_at timestamptz default now()
+);
+alter table public.profiles enable row level security;
+drop policy if exists "service role all" on public.profiles;
+create policy "service role all" on public.profiles for all using (true) with check (true);
+
+-- Daily life schedule / to-do (the "daily talika" for any citizen)
+create table if not exists public.daily_plans (
+  id uuid primary key default gen_random_uuid(),
+  user_id text not null,
+  date text not null,                 -- YYYY-MM-DD
+  time text,                          -- e.g. "09:00"
+  title text not null,
+  category text default 'task',       -- task | work | health | errand | family | other
+  done boolean default false,
+  note text,
+  created_at timestamptz default now()
+);
+alter table public.daily_plans enable row level security;
+drop policy if exists "service role all" on public.daily_plans;
+create policy "service role all" on public.daily_plans for all using (true) with check (true);
+create index if not exists idx_daily_plans_user_date on public.daily_plans(user_id, date);
+
+-- Hotels / resorts / businesses (public listings, owner-managed)
+create table if not exists public.hotels (
+  id uuid primary key default gen_random_uuid(),
+  owner_id text not null,             -- the business account
+  name text not null,
+  category text default 'hotel',      -- hotel | resort | restaurant | motel | other
+  address text,
+  district text,
+  division text,
+  phone text,
+  description text,
+  amenities text[],                   -- e.g. wifi, pool, ac
+  images text[],                      -- storage keys / urls
+  rating numeric default 0,
+  price_range text,                   -- budget | mid | premium | luxury
+  verified boolean default false,
+  active boolean default true,
+  created_at timestamptz default now(),
+  updated_at timestamptz default now()
+);
+alter table public.hotels enable row level security;
+drop policy if exists "service role all" on public.hotels;
+create policy "service role all" on public.hotels for all using (true) with check (true);
+create index if not exists idx_hotels_owner on public.hotels(owner_id);
+create index if not exists idx_hotels_district on public.hotels(district);
+
+-- Bookings: a customer books a room at a hotel
+create table if not exists public.bookings (
+  id uuid primary key default gen_random_uuid(),
+  hotel_id uuid references public.hotels(id) on delete cascade,
+  user_id text not null,              -- who booked (customer)
+  guest_name text,
+  guest_phone text,
+  check_in date,
+  check_out date,
+  rooms int default 1,
+  guests int default 1,
+  amount numeric default 0,           -- in BDT
+  status text default 'confirmed',    -- pending | confirmed | cancelled | checked_in | checked_out
+  note text,
+  created_at timestamptz default now()
+);
+alter table public.bookings enable row level security;
+drop policy if exists "service role all" on public.bookings;
+create policy "service role all" on public.bookings for all using (true) with check (true);
+create index if not exists idx_bookings_hotel on public.bookings(hotel_id);
+create index if not exists idx_bookings_user on public.bookings(user_id);
+
+-- Invoices / bills: a business creates a bill for a customer
+create table if not exists public.invoices (
+  id uuid primary key default gen_random_uuid(),
+  business_id text not null,          -- the hotel/business owner
+  customer_name text,
+  customer_phone text,
+  items jsonb default '[]'::jsonb,    -- [{description, qty, price}]
+  subtotal numeric default 0,
+  tax numeric default 0,
+  total numeric default 0,            -- in BDT
+  status text default 'unpaid',       -- unpaid | paid
+  invoice_no text,
+  pdf_key text,                       -- storage key for generated PDF
+  created_at timestamptz default now()
+);
+alter table public.invoices enable row level security;
+drop policy if exists "service role all" on public.invoices;
+create policy "service role all" on public.invoices for all using (true) with check (true);
+create index if not exists idx_invoices_business on public.invoices(business_id);
