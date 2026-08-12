@@ -510,3 +510,9 @@ button { font-family: inherit; color: inherit; }
   background: var(--man-surface-2); color: var(--man-text); border: 1px solid var(--man-border);
   border-radius: var(--radius-pill); padding: 7px 14px; font-size: 0.85rem; cursor: pointer; font-weight: 600; }
 .dash-back:hover { border-color: var(--man-primary); }
+
+/* ===== Language switch ===== */
+.lang-switch { display: flex; gap: 4px; margin-right: auto; margin-left: 12px; }
+.lang-btn { background: transparent; color: var(--man-text-dim); border: 1px solid var(--man-border);
+  border-radius: var(--radius-pill); padding: 4px 10px; font-size: 0.75rem; cursor: pointer; }
+.lang-btn.active { background: var(--man-grad); color: #0a0a0f; font-weight: 700; border-color: transparent; }

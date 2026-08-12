@@ -4,6 +4,7 @@
 // daily plan, and a minimized chat button. Everything is a visible module.
 
 import React, { useEffect, useState } from "react";
+import { tr, LANGS, detectLang, saveLang, Lang } from "@/lib/i18n";
 
 type Section = "finance" | "debts" | "plans" | "hotels" | "bookings" | "invoices" | "profile";
 
@@ -12,6 +13,7 @@ export default function LifeDashboard({ onOpenChat, onOpenDaily }: {
   onOpenDaily: () => void;
 }) {
   const [sec, setSec] = useState<Section>("finance");
+  const [lang, setLang] = useState<Lang>(detectLang());
   const [msg, setMsg] = useState("");
   const month = new Date().toISOString().slice(0, 7); // YYYY-MM
   const today = new Date().toISOString().slice(0, 10);
@@ -104,20 +106,28 @@ export default function LifeDashboard({ onOpenChat, onOpenDaily }: {
   const fmt = (n: number) => "৳" + (Math.round(n * 100) / 100).toLocaleString("en-IN");
 
   const nav: { id: Section; label: string; icon: string }[] = [
-    { id: "finance", label: "Finance", icon: "💰" },
-    { id: "debts", label: "Dhar/Dhon", icon: "🤝" },
-    { id: "plans", label: "Daily Plan", icon: "📅" },
-    { id: "invoices", label: "Invoices", icon: "🧾" },
-    { id: "hotels", label: "Hotels", icon: "🏨" },
-    { id: "bookings", label: "Bookings", icon: "🛎️" },
-    { id: "profile", label: "Profile", icon: "👤" },
+    { id: "finance", label: tr("nav_finance", lang), icon: "💰" },
+    { id: "debts", label: tr("nav_debts", lang), icon: "🤝" },
+    { id: "plans", label: tr("nav_plans", lang), icon: "📅" },
+    { id: "invoices", label: tr("nav_invoices", lang), icon: "🧾" },
+    { id: "hotels", label: tr("nav_hotels", lang), icon: "🏨" },
+    { id: "bookings", label: tr("nav_bookings", lang), icon: "🛎️" },
+    { id: "profile", label: tr("nav_profile", lang), icon: "👤" },
   ];
 
   return (
     <div className="dash">
       <div className="dash-top">
-        <div className="dash-title">Professional Life Area</div>
-        <span className="dash-welcome">{profile.full_name ? "Welcome, " + profile.full_name.split(" ")[0] : ""}</span>
+        <div className="dash-title">{tr("dash_title", lang)}</div>
+        <div className="lang-switch">
+          {LANGS.map((l) => (
+            <button key={l.id} className={`lang-btn ${lang === l.id ? "active" : ""}`}
+              onClick={() => { setLang(l.id); saveLang(l.id); }}>
+              {l.native}
+            </button>
+          ))}
+        </div>
+        <span className="dash-welcome">{profile.full_name ? tr("welcome", lang) + ", " + profile.full_name.split(" ")[0] : ""}</span>
         {msg && <div className="dash-msg">{msg}</div>}
       </div>
 
@@ -127,8 +137,8 @@ export default function LifeDashboard({ onOpenChat, onOpenDaily }: {
             {n.icon} {n.label}
           </button>
         ))}
-        <button className="dash-tab" onClick={onOpenChat}>💬 Chat</button>
-        <button className="dash-tab" onClick={onOpenDaily}>🏠 Daily Life</button>
+        <button className="dash-tab" onClick={onOpenChat}>💬 {tr("nav_chat", lang)}</button>
+        <button className="dash-tab" onClick={onOpenDaily}>🏠 {tr("nav_daily", lang)}</button>
       </div>
 
       <div className="dash-body">
@@ -138,20 +148,20 @@ export default function LifeDashboard({ onOpenChat, onOpenDaily }: {
             {/* Big summary cards */}
             <div className="fin-overview">
               <div className="fin-card income">
-                <div className="fin-card-label">Ei Masher Income</div>
+                <div className="fin-card-label">{tr("month_income", lang)}</div>
                 <div className="fin-card-num">{fmt(monthIncome)}</div>
               </div>
               <div className="fin-card expense">
-                <div className="fin-card-label">Ei Masher Khoroch</div>
+                <div className="fin-card-label">{tr("month_expense", lang)}</div>
                 <div className="fin-card-num">{fmt(monthExpense)}</div>
               </div>
               <div className={`fin-card ${isProfit ? "good" : "bad"}`}>
-                <div className="fin-card-label">Har / Labh (Profit-Loss)</div>
+                <div className="fin-card-label">{tr("har_labh", lang)}</div>
                 <div className="fin-card-num">{isProfit ? "+" : "−"}{fmt(Math.abs(harLabh))}</div>
-                <div className="fin-card-sub">{isProfit ? "Good — profit (green)" : "Risk — loss (red)"}</div>
+                <div className="fin-card-sub">{isProfit ? tr("good_profit", lang) : tr("risk_loss", lang)}</div>
               </div>
               <div className="fin-card">
-                <div className="fin-card-label">Total Balance</div>
+                <div className="fin-card-label">{tr("total_balance", lang)}</div>
                 <div className="fin-card-num" style={{ color: totalBalance >= 0 ? "var(--man-success)" : "var(--man-danger)" }}>
                   {totalBalance >= 0 ? "+" : "−"}{fmt(Math.abs(totalBalance))}
                 </div>
@@ -193,30 +203,30 @@ export default function LifeDashboard({ onOpenChat, onOpenDaily }: {
         {/* ============ DHAR / DHON ============ */}
         {sec === "debts" && (
           <div className="dash-section">
-            <h3>Dhar / Dhon Ledger</h3>
-            <p className="dash-lead">Kake koto dhar dilo, koto nilo, kobe, keno — sob likhe rakhen.</p>
+            <h3>{tr("debts_title", lang)}</h3>
+            <p className="dash-lead">{tr("debts_lead", lang)}</p>
             <div className="fin-overview" style={{ marginBottom: 12 }}>
-              <div className="fin-card"><div className="fin-card-label">Dhar deya (open)</div><div className="fin-card-num" style={{ color: "var(--man-danger)" }}>{fmt(debtSum?.totalLent || 0)}</div></div>
-              <div className="fin-card"><div className="fin-card-label">Dhar neya (open)</div><div className="fin-card-num" style={{ color: "var(--man-success)" }}>{fmt(debtSum?.totalBorrowed || 0)}</div></div>
+              <div className="fin-card"><div className="fin-card-label">{tr("dhar_deya", lang)}</div><div className="fin-card-num" style={{ color: "var(--man-danger)" }}>{fmt(debtSum?.totalLent || 0)}</div></div>
+              <div className="fin-card"><div className="fin-card-label">{tr("dhar_neya", lang)}</div><div className="fin-card-num" style={{ color: "var(--man-success)" }}>{fmt(debtSum?.totalBorrowed || 0)}</div></div>
             </div>
             <div className="dash-form-col" style={{ marginBottom: 12 }}>
               <div className="dash-form-row">
                 <div className="seg">
-                  <button className={dDir === "lent" ? "seg-on" : ""} onClick={() => setDDir("lent")}>Dhar dilo (I lent)</button>
-                  <button className={dDir === "borrowed" ? "seg-on" : ""} onClick={() => setDDir("borrowed")}>Dhar nilo (I borrowed)</button>
+                  <button className={dDir === "lent" ? "seg-on" : ""} onClick={() => setDDir("lent")}>{tr("lent_btn", lang)}</button>
+                  <button className={dDir === "borrowed" ? "seg-on" : ""} onClick={() => setDDir("borrowed")}>{tr("borrow_btn", lang)}</button>
                 </div>
               </div>
               <div className="dash-form-row">
-                <input className="dash-input grow" placeholder="Kake / kar kache (person)" value={dPerson} onChange={(e) => setDPerson(e.target.value)} />
+                <input className="dash-input grow" placeholder={tr("person_label", lang)} value={dPerson} onChange={(e) => setDPerson(e.target.value)} />
                 <input className="dash-input" style={{ width: 100 }} placeholder="Taka" inputMode="decimal" value={dAmt} onChange={(e) => setDAmt(e.target.value)} />
               </div>
               <div className="dash-form-row">
                 <input className="dash-input" type="date" value={dDate} onChange={(e) => setDDate(e.target.value)} />
-                <input className="dash-input grow" placeholder="Keno / reason" value={dReason} onChange={(e) => setDReason(e.target.value)} />
-                <button className="dash-btn" onClick={addDebt}>Add</button>
+                <input className="dash-input grow" placeholder={tr("reason_label", lang)} value={dReason} onChange={(e) => setDReason(e.target.value)} />
+                <button className="dash-btn" onClick={addDebt}>{tr("add", lang)}</button>
               </div>
             </div>
-            <h4>Records</h4>
+            <h4>{tr("records", lang)}</h4>
             <div className="dash-list">
               {debts.length === 0 && <p className="dash-empty">No dhar records yet.</p>}
               {debts.map((d) => (
@@ -236,13 +246,13 @@ export default function LifeDashboard({ onOpenChat, onOpenDaily }: {
         {/* ============ DAILY PLAN ============ */}
         {sec === "plans" && (
           <div className="dash-section">
-            <h3>Today&apos;s Plan — {today}</h3>
+            <h3>{tr("todays_plan", lang)} — {today}</h3>
             <div className="dash-form-row">
               <input className="dash-input grow" placeholder="Add a task for today" value={planTitle} onChange={(e) => setPlanTitle(e.target.value)} onKeyDown={(e) => e.key === "Enter" && addPlan()} />
-              <button className="dash-btn" onClick={addPlan}>Add</button>
+              <button className="dash-btn" onClick={addPlan}>{tr("add", lang)}</button>
             </div>
             <div className="dash-list">
-              {plans.length === 0 && <p className="dash-empty">Nothing planned today.</p>}
+              {plans.length === 0 && <p className="dash-empty">{tr("nothing_planned", lang)}</p>}
               {plans.map((p) => (
                 <div key={p.id} className={`dash-item ${p.done ? "done" : ""}`}>
                   <span className="dash-item-time">{p.time || "–"}</span>

@@ -3,11 +3,13 @@
 // Personal daily planner + profile + hotels/resorts + bookings + invoices.
 
 import React, { useEffect, useState } from "react";
+import { tr, LANGS, detectLang, saveLang, Lang } from "@/lib/i18n";
 
 type Tab = "home" | "plans" | "profile" | "hotels" | "bookings" | "invoices";
 
 export default function DailyLife({ onBack }: { onBack: () => void }) {
   const [tab, setTab] = useState<Tab>("home");
+  const [lang, setLang] = useState<Lang>(detectLang());
   const [msg, setMsg] = useState("");
   const [profile, setProfile] = useState<any>(null);
   const [plans, setPlans] = useState<any[]>([]);
@@ -115,12 +117,12 @@ export default function DailyLife({ onBack }: { onBack: () => void }) {
   }
 
   const nav: { id: Tab; label: string }[] = [
-    { id: "home", label: "Home" },
-    { id: "plans", label: "Daily Plan" },
-    { id: "hotels", label: "Hotels" },
-    { id: "bookings", label: "My Bookings" },
-    { id: "invoices", label: "Invoices" },
-    { id: "profile", label: "Profile" },
+    { id: "home", label: tr("home", lang) },
+    { id: "plans", label: tr("nav_plans", lang) },
+    { id: "hotels", label: tr("nav_hotels", lang) },
+    { id: "bookings", label: tr("my_bookings", lang) },
+    { id: "invoices", label: tr("nav_invoices", lang) },
+    { id: "profile", label: tr("nav_profile", lang) },
   ];
 
   return (
@@ -128,7 +130,15 @@ export default function DailyLife({ onBack }: { onBack: () => void }) {
       {/* top bar */}
       <div className="dash-top">
         <button className="icon-btn" onClick={onBack} title="Back to MAN" aria-label="Back">←</button>
-        <div className="dash-title">Daily Life</div>
+        <div className="dash-title">{tr("nav_daily", lang)}</div>
+        <div className="lang-switch">
+          {LANGS.map((l) => (
+            <button key={l.id} className={`lang-btn ${lang === l.id ? "active" : ""}`}
+              onClick={() => { setLang(l.id); saveLang(l.id); }}>
+              {l.native}
+            </button>
+          ))}
+        </div>
         {msg && <div className="dash-msg">{msg}</div>}
       </div>
 

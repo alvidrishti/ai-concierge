@@ -139,7 +139,7 @@ function personalContext(query: string): string {
   return `\nPERSONAL FACTS ABOUT THE CREATOR MD RAYHAN MIA (answer naturally, warmly, using these as true facts — this is the user asking about MAN's creator):\n${p}`;
 }
 
-function isToolIntent(msg: string): "reminder" | "find" | "weather" | "calc" | "web" | "gap" | null {
+function isToolIntent(msg: string): "reminder" | "find" | "weather" | "calc" | "web" | "gap" | "finance" | null {
   const low = msg.toLowerCase();
   if (/remind|reminder|appointment|schedule|book/.test(low)) return "reminder";
   if (/find|compare|options|near|suggest|recommend/.test(low)) return "find";
@@ -148,6 +148,10 @@ function isToolIntent(msg: string): "reminder" | "find" | "weather" | "calc" | "
   if (/\b(search|look up|google|what is .*\?|who is)\b/.test(low) && /(search|look up|google)/.test(low)) return "web";
   // ALVI DRISHTI V23: missing-future / opportunity / gap analysis
   if (/\b(opportunit|what am i missing|gap|missing future|miss out|what should i do next|hidden potential|am i on track|what can i improve)\b/.test(low)) return "gap";
+  // MAN finance / dhar-dhon assistant (Bangla + English). Broader match so
+  // questions like "how much did I spend this month" and "ei mashe koto khoroch"
+  // are answered from the user's real data instead of going to the LLM.
+  if (/(ei mas|ei mash|this month|koto khoroch|khoroch|kharcha|spent|spend|expense|income|salary|taka|টাকা|খরচ|আয়|লাভ|লোকসান|\blabh\b|\bhar\b|balance|কত|dhar|দেনা|পাওনা|ধার|উধার|baki|অর্থ)/.test(low)) return "finance";
   return null;
 }
 
@@ -421,6 +425,30 @@ export async function respond(rawMessage: string, userId: string, isAdmin = fals
       `\n\n${GAP_DISCLAIMER}\n\nI can go deeper if you tell me your actual current situation, resources, or blockers.`;
     await memory.saveConversation(userId, targetThread, "assistant", text);
     return { role: "assistant", text, tool: "missing_future", memoryUsed: true };
+  }
+
+  // ---- MAN Finance / Dhar-Dhon assistant (uses the user's real data) ----
+  if (tool === "finance") {
+    try {
+      const fin = await import("./finance");
+      const debtMod = await import("./debt");
+      const finRecs = await fin.listFinance(userId, 500);
+      const debtRecs = await debtMod.listDebts(userId);
+      const month = new Date().toISOString().slice(0, 7);
+      const m = fin.monthlySummary(finRecs, month);
+      const ds = debtMod.debtSummary(debtRecs);
+      const bn = isBangla(msg);
+      const money = (n: number) => "৳" + n.toLocaleString("en-IN");
+      const text = bn
+        ? `এখানে আপনার অর্থের সারসংক্ষেপ:\n\n📈 **এই মাসের আয়:** ${money(m.income)}\n📉 **এই মাসের খরচ:** ${money(m.expense)}\n${m.isProfit ? "✅ **লাভ:**" : "⚠️ **লোকসান:**"} ${money(Math.abs(m.harLabh))}\n\n🤝 **দেনা-পাওনা:**\n- দেনা দিয়েছি (খোলা): ${money(ds.totalLent)}\n- দেনা নিয়েছি (খোলা): ${money(ds.totalBorrowed)}\n\nখরচ/আয় যোগ করতে চাইলে ড্যাশবোর্ডের অর্থ সেকশন ব্যবহার করুন।`
+        : `Here's your finance summary:\n\n📈 **This month income:** ${money(m.income)}\n📉 **This month expense:** ${money(m.expense)}\n${m.isProfit ? "✅ **Profit:**" : "⚠️ **Loss:**"} ${money(Math.abs(m.harLabh))}\n\n🤝 **Debt/Credit:**\n- Lent out (open): ${money(ds.totalLent)}\n- Borrowed (open): ${money(ds.totalBorrowed)}\n\nAdd income/expense from the Finance section of the dashboard.`;
+      await memory.saveConversation(userId, targetThread, "assistant", text);
+      return { role: "assistant", text, tool: "finance", memoryUsed: true };
+    } catch (e: any) {
+      const text = "আমি অর্থের তথ্য পাইনি। ড্যাশবোর্ডের অর্থ সেকশন থেকে খরচ/আয় যোগ করুন। / I couldn't read your finance data. Add income/expense from the dashboard.";
+      await memory.saveConversation(userId, targetThread, "assistant", text);
+      return { role: "assistant", text, tool: "finance", memoryUsed: true };
+    }
   }
 
   // ---- General conversation -> LLM router ----
