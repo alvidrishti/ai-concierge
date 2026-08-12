@@ -157,3 +157,28 @@ Next.js 14 · TypeScript · Supabase (PostgreSQL) · Vercel · Groq/Gemini AI ·
 - আরও ভাষা (আরবি, চীনা ইত্যাদি)
 - Hotel থেকে customer booking UI (full)
 - Hotel image upload
+
+---
+
+## 11. Hotelian Design Applied to MAN
+
+Apnar **Hotelian Hishab** master spec theke MAN web app-e sobcheye important design/UX element apply kora hoyeche — kintu **Bangladesh-er sob manush er jonno** (sudhu hotel staff na).
+
+| Hotelian concept | MAN application |
+|---|---|
+| Deep Navy + Gold branding | ✅ Theme now Deep Navy `#001F3F` + Gold `#D4AF37` |
+| Dashboard finance summary | ✅ Monthly income/expense/savings/balance cards |
+| Savings sentiment (😊😐😟) | ✅ Great (>25%) / Moderate (>0%) / Needs attention (≤0%) |
+| PDF export | ✅ Finance report PDF (`/api/finance/pdf`) |
+| Footer "Developed by MD RAYHAN MIA" | ✅ On dashboard |
+| Dhar/dhon (lent/borrowed) | ✅ Dhar deya + dhar neya ledger |
+| Multi-language | ✅ Bangla + English + Hindi + Urdu |
+| Daily history / daily plan | ✅ Daily Plan (talika) |
+| Chat minimized (AI as a module) | ✅ Chat is a small FAB, not the main screen |
+
+**Not applied (hotel-specific, not needed for general users):**
+- Duty Roster / grooming checklist (hotel staff only)
+- 4-digit PIN local auth (MAN uses email/phone cloud auth)
+
+**Identity note:** MAN keeps its own brand (not "Hishab Assistant") since it serves all citizens, not only hotel staff. But the design language follows Hotelian.
+
