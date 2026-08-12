@@ -93,3 +93,25 @@ export function financeSummary(records: FinanceRecord[]): {
   }
   return { income: Math.round(income * 100) / 100, expense: Math.round(expense * 100) / 100, balance: Math.round((income - expense) * 100) / 100, byCategory };
 }
+
+// Monthly dashboard summary: this month's income/expense/balance + har-lab.
+// 'har' = loss (negative), 'labh' = profit (positive). Green when good, red when risk.
+export function monthlySummary(records: FinanceRecord[], month: string): {
+  income: number; expense: number; balance: number;
+  harLabh: number;           // income - expense for the month
+  isProfit: boolean;         // true = green / good
+  month: string;
+} {
+  let income = 0, expense = 0;
+  for (const r of records) {
+    // created_at is ISO; month "YYYY-MM"
+    if (!(r.created_at || "").startsWith(month)) continue;
+    if (r.type === "income") income += r.amount;
+    else expense += r.amount;
+  }
+  income = Math.round(income * 100) / 100;
+  expense = Math.round(expense * 100) / 100;
+  const harLabh = Math.round((income - expense) * 100) / 100;
+  return { income, expense, balance: harLabh, harLabh, isProfit: harLabh >= 0, month };
+}
+

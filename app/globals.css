@@ -481,3 +481,32 @@ button { font-family: inherit; color: inherit; }
 .dash-item-note { color: var(--man-text-dim); font-size: 0.82rem; }
 .dash-del { background: none; border: none; color: var(--man-danger); cursor: pointer; font-size: 1rem; }
 .dash-empty { color: var(--man-text-dim); font-style: italic; }
+
+/* ===== Professional Life Dashboard ===== */
+.dash-welcome { color: var(--man-text-dim); font-size: 0.85rem; }
+.fin-overview { display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); gap: 12px; }
+.fin-card { padding: 16px; border-radius: var(--radius-lg); border: 1px solid var(--man-border); background: var(--man-surface); }
+.fin-card.income { border-color: var(--man-success); }
+.fin-card.expense { border-color: var(--man-danger); }
+.fin-card.good { border-color: var(--man-success); background: color-mix(in srgb, var(--man-success) 8%, var(--man-surface)); }
+.fin-card.bad { border-color: var(--man-danger); background: color-mix(in srgb, var(--man-danger) 10%, var(--man-surface)); }
+.fin-card-label { font-size: 0.75rem; text-transform: uppercase; letter-spacing: .04em; color: var(--man-text-dim); }
+.fin-card-num { font-size: 1.7rem; font-weight: 800; margin-top: 4px; }
+.fin-card-sub { font-size: 0.78rem; margin-top: 2px; }
+.fin-card.good .fin-card-num, .fin-card.good .fin-card-sub { color: var(--man-success); }
+.fin-card.bad .fin-card-num, .fin-card.bad .fin-card-sub { color: var(--man-danger); }
+.dash-debt-dir { font-weight: 800; }
+.dash-debt-dir.lent { color: var(--man-danger); }
+.dash-debt-dir.borrowed { color: var(--man-success); }
+.ok { color: var(--man-success); font-size: 0.78rem; font-weight: 700; }
+
+/* ===== Dashboard <-> Chat navigation ===== */
+.chat-fab { position: fixed; right: 24px; bottom: 24px; z-index: 900;
+  width: 56px; height: 56px; border-radius: 50%; border: none; cursor: pointer;
+  background: var(--man-grad); color: #0a0a0f; display: flex; align-items: center; justify-content: center;
+  box-shadow: 0 8px 24px rgba(0,0,0,.4); transition: transform var(--speed) var(--ease); }
+.chat-fab:hover { transform: scale(1.08); }
+.dash-back { display: inline-flex; align-items: center; gap: 6px; margin-left: auto;
+  background: var(--man-surface-2); color: var(--man-text); border: 1px solid var(--man-border);
+  border-radius: var(--radius-pill); padding: 7px 14px; font-size: 0.85rem; cursor: pointer; font-weight: 600; }
+.dash-back:hover { border-color: var(--man-primary); }

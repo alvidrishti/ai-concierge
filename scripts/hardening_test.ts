@@ -213,6 +213,34 @@ async function main() {
   check("invoice tax = 280 (5%)", tax === 280, `got ${tax}`);
   check("invoice total = 5880", total === 5880, `got ${total}`);
 
+  // ---------------- Daily-Life Platform: monthly finance + dhar/dhon ----------------
+  console.log("\n[Daily-Life Platform] Monthly finance (har-lab) + dhar/dhon");
+  // monthly summary (pure, no DB)
+  const mSum = fin.monthlySummary([
+    { type: "income", amount: 12000, created_at: "2026-08-05T00:00:00Z" },
+    { type: "expense", amount: 4500, created_at: "2026-08-06T00:00:00Z" },
+    { type: "expense", amount: 900, created_at: "2026-07-30T00:00:00Z" }, // not August
+  ] as any, "2026-08");
+  check("monthly income = 12000", mSum.income === 12000, `got ${mSum.income}`);
+  check("monthly expense = 4500 (ignores July)", mSum.expense === 4500, `got ${mSum.expense}`);
+  check("har-lab = 7500 profit (green)", mSum.harLabh === 7500 && mSum.isProfit === true, `got ${mSum.harLabh}`);
+  const mLoss = fin.monthlySummary([
+    { type: "expense", amount: 5000, created_at: "2026-08-01T00:00:00Z" },
+  ] as any, "2026-08");
+  check("loss = red (isProfit false)", mLoss.harLabh === -5000 && mLoss.isProfit === false, `got ${mLoss.harLabh}`);
+
+  // dhar/dhon summary (pure)
+  const debt = await import("../lib/debt");
+  const dSum = debt.debtSummary([
+    { direction: "lent", amount: 3000, status: "open" },
+    { direction: "lent", amount: 2000, status: "returned" }, // settled, excluded
+    { direction: "borrowed", amount: 1500, status: "open" },
+  ] as any);
+  check("dhar deya (open) = 3000", dSum.totalLent === 3000, `got ${dSum.totalLent}`);
+  check("dhar neya (open) = 1500", dSum.totalBorrowed === 1500, `got ${dSum.totalBorrowed}`);
+  check("net = 1500 (lent more)", dSum.net === 1500, `got ${dSum.net}`);
+  check("debt lib exports present", typeof debt.addDebt === "function" && typeof debt.listDebts === "function");
+
   console.log(`\n${pass} passed, ${fail} failed`);
   process.exit(fail ? 1 : 0);
 }

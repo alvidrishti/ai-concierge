@@ -391,3 +391,21 @@ alter table public.invoices enable row level security;
 drop policy if exists "service role all" on public.invoices;
 create policy "service role all" on public.invoices for all using (true) with check (true);
 create index if not exists idx_invoices_business on public.invoices(business_id);
+
+-- ============ DEBTS / DHAR LEDGER ============
+-- Track money lent out (dhar deya) and money borrowed (dhar neya).
+create table if not exists public.debts (
+  id uuid primary key default gen_random_uuid(),
+  user_id text not null,
+  direction text not null,           -- 'lent' (I gave) | 'borrowed' (I took)
+  person text not null,              -- who
+  amount numeric not null,           -- in BDT
+  date text,                         -- when
+  reason text,                       -- why
+  status text default 'open',        -- open | returned | settled
+  created_at timestamptz default now()
+);
+alter table public.debts enable row level security;
+drop policy if exists "service role all" on public.debts;
+create policy "service role all" on public.debts for all using (true) with check (true);
+create index if not exists idx_debts_user on public.debts(user_id);
