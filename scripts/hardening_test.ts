@@ -241,6 +241,21 @@ async function main() {
   check("net = 1500 (lent more)", dSum.net === 1500, `got ${dSum.net}`);
   check("debt lib exports present", typeof debt.addDebt === "function" && typeof debt.listDebts === "function");
 
+  // ---------------- Savings sentiment (Hotelian-style) ----------------
+  console.log("\n[Finance] Savings sentiment");
+  const sent = (income: number, expense: number) => {
+    const savings = income - expense;
+    const pct = income > 0 ? Math.round((savings / income) * 100) : 0;
+    if (income === 0) return "neutral";
+    if (pct > 25) return "great";
+    if (pct > 0) return "moderate";
+    return "attention";
+  };
+  check("savings >25% = great", sent(10000, 6000) === "great");       // 40%
+  check("savings 0-25% = moderate", sent(10000, 9000) === "moderate"); // 10%
+  check("0/negative = attention", sent(10000, 12000) === "attention"); // -20%
+  check("no income = neutral", sent(0, 500) === "neutral");
+
   console.log(`\n${pass} passed, ${fail} failed`);
   process.exit(fail ? 1 : 0);
 }

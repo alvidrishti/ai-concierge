@@ -105,6 +105,20 @@ export default function LifeDashboard({ onOpenChat, onOpenDaily }: {
 
   const fmt = (n: number) => "৳" + (Math.round(n * 100) / 100).toLocaleString("en-IN");
 
+  // Savings sentiment (Hotelian-style visual feedback)
+  const savingsPct = monthIncome > 0 ? Math.round((harLabh / monthIncome) * 100) : 0;
+  const sentiment = monthIncome === 0
+    ? { emoji: "⚪", label: "Neutral / নিউট্রাল", color: "var(--man-text-dim)" }
+    : savingsPct > 25
+      ? { emoji: "😊", label: "Great / দারুণ", color: "var(--man-success)" }
+      : savingsPct > 0
+        ? { emoji: "😐", label: "Moderate / মাঝারি", color: "var(--man-gold, #D4AF37)" }
+        : { emoji: "😟", label: "Needs attention / মনোযোগ দরকার", color: "var(--man-danger)" };
+
+  function downloadFinancePdf() {
+    window.open("/api/finance/pdf", "_blank");
+  }
+
   const nav: { id: Section; label: string; icon: string }[] = [
     { id: "finance", label: tr("nav_finance", lang), icon: "💰" },
     { id: "debts", label: tr("nav_debts", lang), icon: "🤝" },
@@ -166,6 +180,15 @@ export default function LifeDashboard({ onOpenChat, onOpenDaily }: {
                   {totalBalance >= 0 ? "+" : "−"}{fmt(Math.abs(totalBalance))}
                 </div>
               </div>
+              {/* Savings sentiment */}
+              <div className="fin-card sentiment" style={{ borderColor: sentiment.color }}>
+                <div className="fin-card-label">Savings / সঞ্চয়</div>
+                <div className="fin-card-num">{sentiment.emoji} {savingsPct}%</div>
+                <div className="fin-card-sub" style={{ color: sentiment.color }}>{sentiment.label}</div>
+              </div>
+            </div>
+            <div style={{ display: "flex", gap: 8, marginTop: 10 }}>
+              <button className="dash-btn" onClick={downloadFinancePdf}>📄 PDF Report</button>
             </div>
 
             {/* add form */}
@@ -300,6 +323,7 @@ export default function LifeDashboard({ onOpenChat, onOpenDaily }: {
           </div>
         )}
       </div>
+      <div className="dash-footer">Developed by MD RAYHAN MIA</div>
     </div>
   );
 }
