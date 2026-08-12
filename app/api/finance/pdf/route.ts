@@ -60,7 +60,7 @@ export async function GET() {
   const money = (n: number) => "BDT " + n.toLocaleString("en-IN");
 
   const text = [
-    "HOTELIAN / MAN — FINANCE REPORT",
+    "MAN — FINANCE REPORT",
     "DEVELOPED BY MD RAYHAN MIA",
     "---",
     `User: ${session.name}`,

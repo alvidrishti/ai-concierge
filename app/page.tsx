@@ -7,6 +7,7 @@ import ManLogo, { ManMark } from "@/components/ManLogo";
 import ManSplash from "@/components/ManSplash";
 import DailyLife from "@/components/DailyLife";
 import LifeDashboard from "@/components/LifeDashboard";
+import DailyLifeOS from "@/components/DailyLifeOS";
 import {
   IconPlus, IconSearch, IconWeather, IconMap, IconCalculator, IconClock,
   IconMemory, IconExport, IconMic, IconSend, IconSettings, IconLogout,
@@ -58,7 +59,7 @@ function relativeTime(iso?: string): string {
 
 export default function Page() {
   const [auth, setAuth] = useState<null | { id: string; name: string; role: string }>(null);
-  const [view, setView] = useState<"login" | "chat" | "life" | "dash">("login");
+  const [view, setView] = useState<"login" | "chat" | "life" | "dash" | "os">("login");
   const [chatOpen, setChatOpen] = useState(false);
   const [messages, setMessages] = useState<Msg[]>([]);
   const [input, setInput] = useState("");
@@ -152,7 +153,7 @@ export default function Page() {
         const d = await r.json();
         if (d.authenticated) {
           setAuth({ id: d.user.id, name: d.user.name, role: d.user.role });
-          setView("dash");
+          setView("os");
           setMemories(d.memory || []);
           setStats(d.stats || null);
           if (!localStorage.getItem("man_onboarded_" + d.user.id)) setShowOnboarding(true);
@@ -280,7 +281,7 @@ export default function Page() {
     const d = await res.json();
     if (!res.ok) { setLoginMsg(d.error || "Login failed."); return; }
     setAuth({ id: d.userId, name: d.name, role: d.role });
-    setView("dash"); setInput("");
+    setView("os"); setInput("");
     if (!localStorage.getItem("man_onboarded_" + d.userId)) { setShowOnboarding(true); setOnboardStep(0); }
     loadThreads();
   }
@@ -415,7 +416,7 @@ export default function Page() {
       // Phase 1 account lifecycle. If signup returns authenticated (graceful
       // fallback when email delivery is unavailable), log the user in directly.
       if (d.authenticated) {
-        setAuth({ id:d.userId, name:d.name, role:d.role }); setView("dash");
+        setAuth({ id:d.userId, name:d.name, role:d.role }); setView("os");
         if (!localStorage.getItem("man_onboarded_"+d.userId)){ setShowOnboarding(true); setOnboardStep(0);}
         loadThreads();
       } else if (d.needsVerification === "email") {
@@ -427,7 +428,7 @@ export default function Page() {
         setAuthMode("phone");
         setOtpRequested(false);
       } else {
-        setAuth({ id:d.userId, name:d.name, role:d.role }); setView("dash");
+        setAuth({ id:d.userId, name:d.name, role:d.role }); setView("os");
         if (!localStorage.getItem("man_onboarded_"+d.userId)){ setShowOnboarding(true); setOnboardStep(0);}
         loadThreads();
       }
@@ -453,7 +454,7 @@ export default function Page() {
     const d = await res.json();
     setAuthBusy(false);
     if (d.authenticated) {
-      setAuth({ id:d.userId, name:d.name, role:d.role }); setView("dash");
+      setAuth({ id:d.userId, name:d.name, role:d.role }); setView("os");
       if (!localStorage.getItem("man_onboarded_"+d.userId)){ setShowOnboarding(true); setOnboardStep(0);}
       loadThreads();
     } else setLoginMsg(d.error || "Invalid code.");
@@ -689,11 +690,22 @@ export default function Page() {
     );
   }
 
+  // MAN — Personal Daily Life OS (frozen navigation: TODAY·MONEY·PLAN·MAN·MORE)
+  if (view === "os") {
+    return (
+      <DailyLifeOS
+        auth={auth || { id: "", name: "User", role: "user" }}
+        onOpenChat={() => setView("chat")}
+        onLogout={logout}
+      />
+    );
+  }
+
   if (view === "life") {
     return (
       <div className="app">
         <main className="main-col" style={{ minHeight: "100vh" }}>
-          <DailyLife onBack={() => setView("dash")} />
+          <DailyLife onBack={() => setView("os")} />
         </main>
       </div>
     );
@@ -718,7 +730,7 @@ export default function Page() {
               <div className="brand-sub">Personal AI Intelligence Agent <span className="online-dot" title="Online"></span></div>
             </div>
           </div>
-          <button className="dash-back" onClick={() => setView("dash")} title="Back to Dashboard">
+          <button className="dash-back" onClick={() => setView("os")} title="Back to Dashboard">
             <IconCalendar size={15} /> Dashboard
           </button>
           <div className="top-actions">
